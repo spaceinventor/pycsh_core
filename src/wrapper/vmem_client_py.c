@@ -32,18 +32,18 @@ PyObject * pycsh_vmem_download(PyObject * self, PyObject * args, PyObject * kwds
 	unsigned int packet_timeout = 5000;
 	unsigned int ack_timeout = 2000;
 	unsigned int ack_count = 2;
-	unsigned int address = 0;
+	uint64_t address = 0;
 	unsigned int length = 0;
 
     static char *kwlist[] = {"address", "length", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "II|IIIIII:vmem_download", kwlist, &address, &length, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|kIIIII:vmem_download", kwlist, &address, &length, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count))
 		return NULL;  // TypeError is thrown
 
 	printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
 	csp_rdp_set_opt(window, conn_timeout, packet_timeout, 1, ack_timeout, ack_count);
 
-	printf("Downloading from: %08"PRIX32"\n", address);
+	printf("Downloading from: %08"PRIX64"\n", address);
 	char *odata = malloc(length);
 
 	vmem_download(node,timeout,address,length,odata,version,1);
@@ -115,18 +115,19 @@ PyObject * pycsh_vmem_upload(PyObject * self, PyObject * args, PyObject * kwds) 
 	unsigned int packet_timeout = 5000;
 	unsigned int ack_timeout = 2000;
 	unsigned int ack_count = 2;
-	unsigned int address = 0;
+	uint64_t address = 0;
+	
 	PyObject * data_in AUTO_DECREF = NULL;
 
     static char *kwlist[] = {"address", "data_in", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", "version", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "IO|IIIIIII:vmem_upload", kwlist, &address, &data_in, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &version))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kO|kIIIIII:vmem_upload", kwlist, &address, &data_in, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &version))
 		return NULL;  // TypeError is thrown
 
 	printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
 	csp_rdp_set_opt(window, conn_timeout, packet_timeout, 1, ack_timeout, ack_count);
 
-	printf("Uploading from: %08"PRIX32"\n", address);
+	printf("Uploading from: %08"PRIX64"\n", address);
 	char *idata = NULL;
 	Py_ssize_t idata_len = 0;
 
