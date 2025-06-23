@@ -130,12 +130,12 @@ PyObject * pycsh_csp_cmp_uptime(PyObject * self, PyObject * args, PyObject * kwd
         return NULL;  // TypeError is thrown
     }
 
-    int uptime = 0;
+    uint32_t uptime = 0;
     Py_BEGIN_ALLOW_THREADS;
     csp_get_uptime(node, timeout, &uptime);
     Py_END_ALLOW_THREADS;
 
-    return Py_BuildValue("i", uptime);
+    return Py_BuildValue("I", uptime);
 }
 
 PyObject * pycsh_slash_reboot(PyObject * self, PyObject * args) {
