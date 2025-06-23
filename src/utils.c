@@ -623,6 +623,59 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 	csp_buffer_free(response);
 }
 
+
+static int pycsh_param_push_single(param_t *param, int offset, int prio, void *value, int verbose, int host, int timeout, int version, bool ack_with_pull) {
+
+	csp_packet_t * packet = csp_buffer_get(PARAM_SERVER_MTU);
+	if (packet == NULL)
+		return -1;
+
+	packet->data[1] = 0;
+	param_transaction_callback_f cb = NULL;
+
+	if (ack_with_pull) {
+		packet->data[1] = 1;
+		cb = pycsh_param_transaction_callback_pull;
+	}
+
+	param_list_t param_list = {
+		.param_arr = &param,
+		.cnt = 1
+	};
+
+	if(version == 2) {
+		packet->data[0] = PARAM_PUSH_REQUEST_V2;
+	} else {
+		packet->data[0] = PARAM_PUSH_REQUEST;
+	}
+
+	param_queue_t queue;
+	param_queue_init(&queue, &packet->data[2], PARAM_SERVER_MTU - 2, 0, PARAM_QUEUE_TYPE_SET, version);
+	param_queue_add(&queue, param, offset, value);
+
+	packet->length = queue.used + 2;
+	packet->id.pri = prio;
+	int result = param_transaction(packet, host, timeout, cb, verbose, version, &param_list);
+
+	if (result < 0) {
+		return -1;
+	}
+
+	/* If it was a remote parameter, set the value after the ack but not if ack with push which sets param timestamp */
+	if (*param->node != 0 && value != NULL && param->timestamp->tv_sec == 0)
+	{
+		if (offset < 0) {
+			for (int i = 0; i < param->array_size; i++)
+				param_set(param, i, value);
+		} else {
+			param_set(param, offset, value);
+		}
+	}
+
+	return 0;
+}
+
+
 static int pycsh_param_pull_single(param_t *param, int offset, int prio, int verbose, int host, int timeout, int version) {
 
 	csp_packet_t * packet = csp_buffer_get(PARAM_SERVER_MTU);
@@ -1012,13 +1065,14 @@ int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host
 		for (size_t i = 0; i < (retries > 0 ? retries : 1); i++) {
 			int param_push_res;
 			Py_BEGIN_ALLOW_THREADS;  // Only allow threads for remote parameters, as local ones could have Python callbacks.
-			param_push_res = param_push_single(param, offset, 0, valuebuf, 1, dest, timeout, paramver, true);
+			param_push_res = pycsh_param_push_single(param, offset, 0, valuebuf, 1, dest, timeout, paramver, true);
 			Py_END_ALLOW_THREADS;
-			if (param_push_res < 0)
+			if (param_push_res < 0) {
 				if (i >= retries-1) {
 					PyErr_Format(PyExc_ConnectionError, "No response from node %d", dest);
 					return -2;
 				}
+			}
 		}
 
 		if (verbose > -1) {
