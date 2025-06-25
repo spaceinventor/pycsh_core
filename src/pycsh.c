@@ -453,13 +453,5 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
 
 	param_callback_dict = (PyDictObject *)PyDict_New();
 
-	{  /* Argumentless CSH init */
-		#ifndef PYCSH_HAVE_APM
-		#ifdef PYCSH_HAVE_SLASH
-			slash_list_init();
-		#endif
-		#endif
-	}
-
 	return Py_NewRef(pycsh);  // `Py_NewRef()` needed because we use AUTO_DECREF for exception handling.
 }
