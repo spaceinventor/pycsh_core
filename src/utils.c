@@ -52,6 +52,12 @@ void _close_dir(DIR *const* dir) {
 	closedir(*dir);
 	//*dir = NULL;
 }
+void _close_file(FILE *const* file) {
+	if (file == NULL || *file == NULL) {
+		return;
+	}
+	fclose(*file);
+}
 void cleanup_GIL(PyGILState_STATE * gstate) {
 	//printf("AAA %d\n", PyGILState_Check());
     //if (*gstate == PyGILState_UNLOCKED)

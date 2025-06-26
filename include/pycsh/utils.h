@@ -20,6 +20,7 @@
 void cleanup_free(void *const* obj);
 void cleanup_str(char *const* obj);
 void _close_dir(DIR *const* dir);
+void _close_file(FILE *const* file);
 void cleanup_GIL(PyGILState_STATE * gstate);
 void cleanup_pyobject(PyObject **obj);
 
@@ -28,6 +29,7 @@ void state_release_GIL(PyThreadState ** state);
 #define CLEANUP_FREE __attribute__((cleanup(cleanup_free)))
 #define CLEANUP_STR __attribute__((cleanup(cleanup_str)))
 #define CLEANUP_DIR __attribute__((cleanup(_close_dir)))
+#define CLEANUP_FILE __attribute__((cleanup(_close_file)))
 #define CLEANUP_GIL __attribute__((cleanup(cleanup_GIL)))
 #define AUTO_DECREF __attribute__((cleanup(cleanup_pyobject)))
 

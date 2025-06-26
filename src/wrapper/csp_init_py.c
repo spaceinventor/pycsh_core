@@ -32,6 +32,9 @@
 #include <csp/csp_rtable.h>
 #include <ifaddrs.h>
 
+#include <pycsh/utils.h>
+
+
 /* These symbols are not present when using PyCSH "standalone" (from a Python script executed by the interactive interpreter for example) */
 __attribute__((weak)) void *(*router_task)(void *) = NULL;
 __attribute__((weak)) void *(*vmem_server_task)(void *) = NULL;
@@ -130,18 +133,64 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     int promisc = 0;
     int mask = 8;
     int dfl = 0;
-    int pub_port = 6000;
-    int sub_port = 7000;
-    char * sec_key = NULL;
+    int pubport = 6000;
+    int subport = 7000;
+    char * key_file = NULL;
+    char * sec_key CLEANUP_STR = NULL;
 
     static char *kwlist[] = {"addr", "server", "promisc", "mask", "default", "pub_port", "sub_port", "sec_key", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiiiz:csp_add_zmq", kwlist, &addr, &server, &promisc, &mask, &dfl, &pub_port, &sub_port, &sec_key))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiiiz:csp_add_zmq", kwlist, &addr, &server, &promisc, &mask, &dfl, &pubport, &subport, &key_file)) {
 		return NULL;  // TypeError is thrown
+    }
+
+    if (subport == 0) {
+        subport = CSP_ZMQPROXY_SUBSCRIBE_PORT + ((key_file == NULL) ? 0 : 1);
+    }
+
+    if (pubport == 0) {
+        pubport = CSP_ZMQPROXY_PUBLISH_PORT + ((key_file == NULL) ? 0 : 1);
+    }
+
+    if(key_file) {
+
+        char key_file_local[256];
+        if (key_file[0] == '~') {
+            strcpy(key_file_local, getenv("HOME"));
+            strcpy(&key_file_local[strlen(key_file_local)], &key_file[1]);
+        }
+        else {
+            strcpy(key_file_local, key_file);
+        }
+
+        FILE *file CLEANUP_FILE = fopen(key_file_local, "r");
+        if(file == NULL){
+            PyErr_Format(PyExc_IOError, "Could not open config %s", key_file_local);
+            return NULL;
+        }
+
+        #define CURVE_KEYLEN 41
+        sec_key = malloc(CURVE_KEYLEN * sizeof(char));
+        if (sec_key == NULL) {
+            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for secret key.");
+            return NULL;
+        }
+
+        if (fgets(sec_key, CURVE_KEYLEN, file) == NULL) {
+            PyErr_SetString(PyExc_IOError, "Failed to read secret key from file.");
+            return NULL;
+        }
+        /* We are most often saved from newlines, by only reading out CURVE_KEYLEN.
+            But we still attempt to strip them, in case someone decides to use a short key. */
+        char * const newline = strchr(sec_key, '\n');
+        if (newline) {
+            *newline = '\0';
+        }
+    }
 
     csp_iface_t * iface;
     // TODO: We need to figure out how to correctly align the interface with respect to pub and sub ports. They are swapped
-    csp_zmqhub_init_filter2((const char *) name, server, addr, mask, promisc, &iface, sec_key, pub_port, sub_port);
+    csp_zmqhub_init_filter2((const char *) name, server, addr, mask, promisc, &iface, sec_key, pubport, subport);
     iface->is_default = dfl;
     iface->addr = addr;
 	iface->netmask = mask;
