@@ -122,6 +122,7 @@ int pycsh_parse_slash_args(const struct slash *slash, PyObject **args_out, PyObj
     return 0;
 }
 
+#if 1
 // Source: https://chat.openai.com
 // Function to print or return the signature of a provided Python function
 char* print_function_signature(PyObject* function, bool only_print) {
@@ -228,6 +229,157 @@ char* print_function_signature_w_docstr(PyObject* function, int only_print) {
 
     return result_buf;
 }
+#else
+static char *format_python_func_help(PyObject *func, int only_print) {
+    PyObject *inspect AUTO_DECREF = PyImport_ImportModule("inspect");
+    if (!inspect) {
+        return NULL;
+    }
+
+    PyObject *getsig AUTO_DECREF = PyObject_GetAttrString(inspect, "signature");
+    PyObject *signature AUTO_DECREF = PyObject_CallFunctionObjArgs(getsig, func, NULL);
+    if (!signature) {
+        return NULL;
+    }
+
+    PyObject *parameters AUTO_DECREF = PyObject_GetAttrString(signature, "parameters");
+
+    PyObject *typing AUTO_DECREF = PyImport_ImportModule("typing");
+    PyObject *get_type_hints AUTO_DECREF = PyObject_GetAttrString(typing, "get_type_hints");
+    PyObject *type_hints AUTO_DECREF = PyObject_CallFunctionObjArgs(get_type_hints, func, NULL);
+
+    PyObject *doc AUTO_DECREF = PyObject_GetAttrString(func, "__doc__");
+    PyObject *keys AUTO_DECREF = PyMapping_Keys(parameters);
+    Py_ssize_t num_args = PyList_Size(keys);
+
+    PyObject *output AUTO_DECREF = PyUnicode_FromString("Usage: ");
+    PyObject *func_name AUTO_DECREF = PyObject_GetAttrString(func, "__name__");
+    if (func_name) {
+        PyUnicode_Append(&output, func_name);
+    } else {
+        PyUnicode_Append(&output, PyUnicode_FromString("<function>"));
+    }
+
+    PyUnicode_Append(&output, PyUnicode_FromString(" [OPTIONS...]"));
+
+    for (Py_ssize_t i = 0; i < num_args; ++i) {
+        PyObject *key = PyList_GetItem(keys, i);  // borrowed
+        const char *argname = PyUnicode_AsUTF8(key);
+        PyUnicode_Append(&output, PyUnicode_FromFormat(" [%s]", argname));
+    }
+
+    PyUnicode_Append(&output, PyUnicode_FromString("\n"));
+
+    if (doc && PyUnicode_Check(doc)) {
+        PyUnicode_Append(&output, PyUnicode_FromString("\n"));
+        PyUnicode_Append(&output, doc);
+        PyUnicode_Append(&output, PyUnicode_FromString("\n"));
+    }
+
+    PyUnicode_Append(&output, PyUnicode_FromString("\n"));
+
+    for (Py_ssize_t i = 0; i < num_args; ++i) {
+        PyObject *key = PyList_GetItem(keys, i);  // borrowed
+        PyObject *param AUTO_DECREF = PyObject_GetItem(parameters, key);
+        const char *argname = PyUnicode_AsUTF8(key);
+        PyObject *default_obj AUTO_DECREF = PyObject_GetAttrString(param, "default");
+        PyObject *empty AUTO_DECREF = PyObject_GetAttrString(inspect, "_empty");
+        int has_default = 0;
+        if (default_obj && empty) {
+            int cmp = PyObject_RichCompareBool(default_obj, empty, Py_NE);
+            if (cmp < 0) return NULL;  // Error
+            has_default = cmp;
+        }
+
+        PyObject *hint = type_hints ? PyDict_GetItem(type_hints, key) : NULL;
+        PyObject *hint_str_obj AUTO_DECREF = hint ? PyObject_Str(hint) : NULL;
+        const char *hint_str = hint_str_obj ? PyUnicode_AsUTF8(hint_str_obj) : NULL;
+
+        PyObject *arg_str AUTO_DECREF = PyUnicode_FromString("");
+
+        if (hint && PyType_IsSubtype((PyTypeObject*)hint, &PyBool_Type)) {
+
+            PyUnicode_Append(&arg_str,
+                PyUnicode_FromFormat("  -%c, --%s ",
+                argname[0], argname));
+
+            char space_pad[28] = {0};
+            for (ssize_t i = 0; i < 28-PyUnicode_GET_LENGTH(arg_str); i++) {
+                space_pad[i] = ' ';
+            }
+
+            if (strnlen(space_pad, 28) > 0) {
+                PyUnicode_Append(&arg_str, PyUnicode_FromFormat("%s", space_pad));
+            }
+
+            PyUnicode_Append(&arg_str,
+                PyUnicode_FromFormat("(flag: bool)"));
+
+        } else {
+
+            char * c_str_type = "STR";
+            if (hint && PyType_IsSubtype((PyTypeObject*)hint, &PyLong_Type)) {
+                c_str_type = "NUM";
+            }
+
+            PyUnicode_Append(&arg_str,
+                PyUnicode_FromFormat("  -%c, --%s=%s ",
+                argname[0], argname, c_str_type));
+
+            if (!arg_str) {
+                PyErr_NoMemory();
+                return NULL;
+            }
+
+            char space_pad[28] = {0};
+            for (ssize_t i = 0; i < 28-PyUnicode_GET_LENGTH(arg_str); i++) {
+                space_pad[i] = ' ';
+            }
+
+            if (strnlen(space_pad, 28) > 0) {
+                PyUnicode_Append(&arg_str, PyUnicode_FromFormat("%s", space_pad));
+            }
+
+            if (hint_str)
+                PyUnicode_Append(&arg_str, PyUnicode_FromFormat("type: %s", hint_str));
+
+            if (has_default) {
+                PyObject *default_repr AUTO_DECREF = PyObject_Repr(default_obj);
+                if (default_repr) {
+                    PyUnicode_Append(&arg_str, PyUnicode_FromFormat(" (default = %U)", default_repr));
+                }
+            }
+
+        }
+
+        PyUnicode_Append(&arg_str, PyUnicode_FromString("\n"));
+        PyUnicode_Append(&output, arg_str);
+    }
+
+    if (only_print) {
+        const char *text = PyUnicode_AsUTF8(output);
+        if (text) {
+            PySys_WriteStdout("%s\n", text);
+        }
+        return NULL;
+    }
+
+    Py_ssize_t size;
+    const char *utf8 = PyUnicode_AsUTF8AndSize(output, &size);
+    if (!utf8) {
+        return NULL;
+    }
+
+    char *result = malloc(size + 1);
+    if (!result) {
+        return NULL;
+    }
+
+    memcpy(result, utf8, size);
+    result[size] = '\0';
+    return result;  // caller must free()
+}
+#endif
 
 typedef enum {
     TYPECAST_SUCCESS = 0,
@@ -600,7 +752,11 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
         return NULL;
     }
 
-    if (args == NULL) {
+    if (args) {
+        args = safe_strdup(args);
+
+    } else {
+        //char *docstr_wo_newline CLEANUP_STR = format_python_func_help((PyObject*)py_slash_func, false);
         char *docstr_wo_newline CLEANUP_STR = print_function_signature_w_docstr((PyObject*)py_slash_func, false);
 
         if (docstr_wo_newline == NULL) {
@@ -614,8 +770,6 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
         strcpy(docstr_w_newline+1, docstr_wo_newline);
 
         args = docstr_w_newline;
-    } else {
-        args = safe_strdup(args);
     }
 
     const struct slash_command temp_command = {
