@@ -35,13 +35,17 @@
 #include <pycsh/utils.h>
 
 
-/* These symbols are not present when using PyCSH "standalone" (from a Python script executed by the interactive interpreter for example) */
-__attribute__((weak)) void *(*router_task)(void *) = NULL;
-__attribute__((weak)) void *(*vmem_server_task)(void *) = NULL;
+static bool csp_router_started = false;
+__attribute__((weak)) bool csp_router_is_running() {
+    return csp_router_started;
+}
+__attribute__((weak)) void csp_router_set_running(bool is_running) {
+    csp_router_started = is_running;
+}
 
 /* Keep track of whether `csp init` has been run, to prevent crashes from using CSP beforehand. */
 bool csp_initialized() {
-	return NULL != router_task;
+	return csp_router_is_running();
 }
 
 void * py_router_task(void * param) {
@@ -59,18 +63,17 @@ void * py_vmem_server_task(void * param) {
 }
 
 PyObject * pycsh_csh_csp_init(PyObject * self, PyObject * args, PyObject * kwds) {
-
-    if(NULL != router_task) {
+    if(true == csp_router_is_running()) {
         Py_RETURN_NONE;
     }
 
-	char * hostname = NULL;
+    char * hostname = NULL;
     char * model = NULL;
     char * revision = NULL;
-	int version = 2;
-	int dedup = 3;
+    int version = 2;
+    int dedup = 3;
 
-	static char *kwlist[] = {"host", "model", "revision", "version", "dedup", NULL};
+    static char *kwlist[] = {"host", "model", "revision", "version", "dedup", NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|zzzii:csp_init", kwlist, &hostname, &model, &revision, &version, &dedup))
         return NULL;  // TypeError is thrown
@@ -103,12 +106,11 @@ PyObject * pycsh_csh_csp_init(PyObject * self, PyObject * args, PyObject * kwds)
     csp_bind_callback(csp_service_handler, CSP_ANY);
     csp_bind_callback(param_serve, PARAM_PORT_SERVER);
 
-
+    csp_router_set_running(true);
     static pthread_t router_handle;
     pthread_create(&router_handle, NULL, &py_router_task, NULL);
     static pthread_t vmem_server_handle;
     pthread_create(&vmem_server_handle, NULL, &py_vmem_server_task, NULL);
-    router_task = py_router_task;
 
     csp_iflist_check_dfl();
 

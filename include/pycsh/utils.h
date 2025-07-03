@@ -123,3 +123,6 @@ ParameterObject * Parameter_wraps_param(param_t *param);
  * @return int 0 on success
  */
 int pycsh_parse_param_mask(PyObject * mask_in, uint32_t * mask_out);
+
+extern bool csp_router_is_running();
+extern void csp_router_set_running(bool is_running);
