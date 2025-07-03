@@ -1087,7 +1087,7 @@ int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host
 
 	} else {  // Otherwise; set local cached value.
 
-		if (offset < 0 && param->type != PARAM_TYPE_STRING) {
+		if (offset < 0 && param->type != PARAM_TYPE_STRING && param->type != PARAM_TYPE_DATA) {
 			for (int i = 0; i < param->array_size; i++)
 				param_set(param, i, valuebuf);
 		} else {
