@@ -230,7 +230,7 @@ char* print_function_signature_w_docstr(PyObject* function, int only_print) {
     return result_buf;
 }
 #else
-static char *format_python_func_help(PyObject *func, int only_print) {
+static char *format_python_func_help(PyObject *func, int only_print, bool short_opts) {
     PyObject *inspect AUTO_DECREF = PyImport_ImportModule("inspect");
     if (!inspect) {
         return NULL;
@@ -295,13 +295,16 @@ static char *format_python_func_help(PyObject *func, int only_print) {
         PyObject *hint_str_obj AUTO_DECREF = hint ? PyObject_Str(hint) : NULL;
         const char *hint_str = hint_str_obj ? PyUnicode_AsUTF8(hint_str_obj) : NULL;
 
-        PyObject *arg_str AUTO_DECREF = PyUnicode_FromString("");
+        PyObject *arg_str AUTO_DECREF = PyUnicode_FromString("  ");
 
         if (hint && PyType_IsSubtype((PyTypeObject*)hint, &PyBool_Type)) {
 
+            if (short_opts) {
+                PyUnicode_Append(&arg_str, PyUnicode_FromFormat("-%c, ", argname[0]));
+            }
+
             PyUnicode_Append(&arg_str,
-                PyUnicode_FromFormat("  -%c, --%s ",
-                argname[0], argname));
+                PyUnicode_FromFormat("--%s ", argname));
 
             char space_pad[28] = {0};
             for (ssize_t i = 0; i < 28-PyUnicode_GET_LENGTH(arg_str); i++) {
@@ -322,9 +325,11 @@ static char *format_python_func_help(PyObject *func, int only_print) {
                 c_str_type = "NUM";
             }
 
-            PyUnicode_Append(&arg_str,
-                PyUnicode_FromFormat("  -%c, --%s=%s ",
-                argname[0], argname, c_str_type));
+            if (short_opts) {
+                PyUnicode_Append(&arg_str, PyUnicode_FromFormat("-%c, ", argname[0]));
+            }
+
+            PyUnicode_Append(&arg_str, PyUnicode_FromFormat("--%s=%s ", argname, c_str_type));
 
             if (!arg_str) {
                 PyErr_NoMemory();
@@ -756,7 +761,7 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
         args = safe_strdup(args);
 
     } else {
-        //char *docstr_wo_newline CLEANUP_STR = format_python_func_help((PyObject*)py_slash_func, false);
+        //char *docstr_wo_newline CLEANUP_STR = format_python_func_help((PyObject*)py_slash_func, false, true);
         char *docstr_wo_newline CLEANUP_STR = print_function_signature_w_docstr((PyObject*)py_slash_func, false);
 
         if (docstr_wo_newline == NULL) {
