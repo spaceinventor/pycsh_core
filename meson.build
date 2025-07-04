@@ -3,7 +3,7 @@ project('pycsh_core', 'c')
 conf = configuration_data()
 include_dir = include_directories('.', 'include')
 dependencies = [
-	dependency('python3', required: true),  # We don't actually Python as dep here when we have the linker args, but it might help VSC with highlighting.
+	dependency('python3', required: true),  # We don't actually need Python as dep here when we have the linker args, but it might help VSC with highlighting.
 ]
 slash_dep = dependency('slash', fallback: ['slash', 'slash_dep'], required: true)
 

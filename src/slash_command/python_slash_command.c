@@ -122,7 +122,7 @@ int pycsh_parse_slash_args(const struct slash *slash, PyObject **args_out, PyObj
     return 0;
 }
 
-#if 1
+#if 0
 // Source: https://chat.openai.com
 // Function to print or return the signature of a provided Python function
 char* print_function_signature(PyObject* function, bool only_print) {
@@ -636,9 +636,10 @@ int SlashCommand_func(struct slash *slash) {
  * 
  * @param function function to check
  * @param raise_exc Whether to set exception message when returning false.
+ * @param short_opts If true, disallows multiple function parameters to start with the same case-sensitive letter.
  * @return true for success
  */
-static bool is_valid_slash_func(const PyObject *function, bool raise_exc) {
+static bool is_valid_slash_func(const PyObject *function, bool raise_exc, bool short_opts) {
 
     /*We currently allow both NULL and Py_None,
             as those are valid to have on PythonSlashCommandObject */
@@ -654,6 +655,41 @@ static bool is_valid_slash_func(const PyObject *function, bool raise_exc) {
         return false;
     }
 
+    if (!short_opts) {
+        return true;
+    }
+
+    // Parse function parameters for duplicates of first letter (case-sensitive)
+    PyObject *co_varnames AUTO_DECREF = PyObject_GetAttrString(func_code, "co_varnames");
+    PyObject *co_argcount_obj AUTO_DECREF = PyObject_GetAttrString(func_code, "co_argcount");
+    if (!co_varnames || !PyTuple_Check(co_varnames) || !co_argcount_obj || !PyLong_Check(co_argcount_obj)) {
+        if (raise_exc)
+            PyErr_SetString(PyExc_TypeError, "Unable to inspect function parameters");
+        return false;
+    }
+    Py_ssize_t co_argcount = PyLong_AsSsize_t(co_argcount_obj);
+    // Use a simple array of 256 (ASCII) for seen first letters
+    char seen[256] = {0};
+    for (Py_ssize_t i = 0; i < co_argcount; ++i) {
+        PyObject *name_obj = PyTuple_GetItem(co_varnames, i); // borrowed
+        if (!name_obj || !PyUnicode_Check(name_obj)) {
+            continue;
+        }
+        const char *name = PyUnicode_AsUTF8(name_obj);
+        if (!name || !name[0]) {
+            continue;
+        }
+        unsigned char first = (unsigned char)name[0];
+        if (seen[first]) {
+            if (raise_exc) {
+                char msg[128];
+                snprintf(msg, sizeof(msg), "Multiple function parameters start with the same letter: '%c'", name[0]);
+                PyErr_SetString(PyExc_ValueError, msg);
+            }
+            return false;
+        }
+        seen[first] = 1;
+    }
     return true;
 }
 
@@ -664,7 +700,7 @@ int PythonSlashCommand_set_func(PythonSlashCommandObject *self, PyObject *value,
         return -1;
     }
 
-    if (!is_valid_slash_func(value, true)) {
+    if (!is_valid_slash_func(value, true, self->short_opts)) {
         return -1;
     }
 
@@ -723,7 +759,7 @@ static int PythonSlashCommand_set_keep_alive(PythonSlashCommandObject *self, PyO
 }
 
 /* Internal API for creating a new PythonSlashCommandObject. */
-static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, char * name, const char * args, const PyObject * py_slash_func) {
+static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, char * name, const char * args, const PyObject * py_slash_func, bool short_opts) {
 
 /* NOTE: Overriding an existing PythonSlashCommand here will most likely cause a memory leak. SLIST_REMOVE() will not Py_DECREF() */
 #if 0  /* It's okay if a command with this name already exists, Overriding it is an intended feature. */
@@ -733,7 +769,7 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
     }
 #endif
 
-    if (!is_valid_slash_func(py_slash_func, true)) {
+    if (!is_valid_slash_func(py_slash_func, true, short_opts)) {
         return NULL;  // Exception message set by is_valid_slash_func();
     }
 
@@ -745,6 +781,7 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
     }
 
     self->keep_alive = 1;
+    self->short_opts = short_opts;
     Py_INCREF(self);  // Slash command list now holds a reference to this PythonSlashCommandObject
     /* NOTE: If .keep_alive defaults to False, then we should remove this Py_INCREF() */
 
@@ -761,8 +798,8 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
         args = safe_strdup(args);
 
     } else {
-        //char *docstr_wo_newline CLEANUP_STR = format_python_func_help((PyObject*)py_slash_func, false, true);
-        char *docstr_wo_newline CLEANUP_STR = print_function_signature_w_docstr((PyObject*)py_slash_func, false);
+        char *docstr_wo_newline CLEANUP_STR = format_python_func_help((PyObject*)py_slash_func, false, short_opts);
+        //char *docstr_wo_newline CLEANUP_STR = print_function_signature_w_docstr((PyObject*)py_slash_func, false);
 
         if (docstr_wo_newline == NULL) {
             Py_DECREF(self);
@@ -855,13 +892,14 @@ static PyObject * PythonSlashCommand_new(PyTypeObject *type, PyObject * args, Py
     char * name;
     PyObject * function;
     char * slash_args = NULL;
+    int short_opts = 1;  // Using bool here is apparently not supported
 
-    static char *kwlist[] = {"name", "function", "args", NULL};
+    static char *kwlist[] = {"name", "function", "args", "short_opts", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sO|z", kwlist, &name, &function, &slash_args))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "sO|zp", kwlist, &name, &function, &slash_args, &short_opts))
         return NULL;  // TypeError is thrown
 
-    PythonSlashCommandObject * python_slash_command = SlashCommand_create_new(type, name, slash_args, function);
+    PythonSlashCommandObject * python_slash_command = SlashCommand_create_new(type, name, slash_args, function, short_opts);
     if (python_slash_command == NULL) {
         // Assume exception message to be set by SlashCommand_create_new()
         /* physaddr should be freed in dealloc() */
