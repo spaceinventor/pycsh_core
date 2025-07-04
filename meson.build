@@ -52,7 +52,7 @@ conf.set('PYCSH_HAVE_SLASH', slash_dep.found())
 pycsh_config_h = configure_file(output: 'pycshconfig.h', configuration: conf, install_dir: 'include/csh/', install: false)
 
 dependencies += [
-	dependency('apm', fallback: ['apm', 'apm_csh_dep'], required: true).partial_dependency(
+	dependency('apm', fallback: ['apm_csh', 'apm_csh_dep'], required: true).partial_dependency(
 		links: false, 
 		includes: true
 	),
