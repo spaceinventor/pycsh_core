@@ -29,60 +29,107 @@ PythonSlashCommandObject *python_wraps_slash_command(const struct slash_command 
 }
 
 /**
- * @brief Parse positional slash arguments to **args_out and named arguments to **kwargs_out
- * 
- * @return int 0 when arguments are successfully parsed
+ * @brief Parse positional and named slash arguments, supporting short options if enabled.
+ *
+ * @param self PythonSlashCommandObject containing the Python function and short_opts flag
+ * @param slash Slash context
+ * @param args_out Output tuple for positional args
+ * @param kwargs_out Output dict for keyword args
+ * @return int 0 on success, -1 on error
  */
-int pycsh_parse_slash_args(const struct slash *slash, PyObject **args_out, PyObject **kwargs_out) {
+int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *slash, PyObject **args_out, PyObject **kwargs_out) {
+    PyObject *py_func = self->py_slash_func;
+    const bool short_opts = self->short_opts;
 
-    // Create a tuple and dit to hold *args and **kwargs.
-    /* TODO Kevin: Support args_out and kwargs_out already being partially filled i.e not NULL,
-        may be a bit complicated by the fact that we use _PyTuple_Resize() */
+    // Build short option map if needed
+    char param_short_map[256] = {0};
+    PyObject *param_name_map[256] = {0};
+    if (short_opts) {
+        PyObject *func_code AUTO_DECREF = PyObject_GetAttrString(py_func, "__code__");
+        PyObject *co_varnames AUTO_DECREF = PyObject_GetAttrString(func_code, "co_varnames");
+        PyObject *co_argcount_obj AUTO_DECREF = PyObject_GetAttrString(func_code, "co_argcount");
+        if (!co_varnames || !PyTuple_Check(co_varnames) || !co_argcount_obj || !PyLong_Check(co_argcount_obj)) {
+            PyErr_SetString(PyExc_TypeError, "Unable to inspect function parameters for short opts");
+            return -1;
+        }
+        Py_ssize_t co_argcount = PyLong_AsSsize_t(co_argcount_obj);
+        for (Py_ssize_t i = 0; i < co_argcount; ++i) {
+            PyObject *name_obj = PyTuple_GetItem(co_varnames, i); // borrowed
+            if (!name_obj || !PyUnicode_Check(name_obj)) continue;
+            const char *name = PyUnicode_AsUTF8(name_obj);
+            if (!name || !name[0]) continue;
+            unsigned char first = (unsigned char)name[0];
+            param_short_map[first] = 1;
+            param_name_map[first] = name_obj;
+        }
+    }
+
     PyObject* args_tuple AUTO_DECREF = PyTuple_New(slash->argc < 0 ? 0 : slash->argc);
     PyObject* kwargs_dict AUTO_DECREF = PyDict_New();
-
     if (args_tuple == NULL || kwargs_dict == NULL) {
-        // Handle memory allocation failure
         PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for args list or kwargs dictionary");
         return -1;
     }
-
     int parsed_positional_args = 0;
-
-    // Tokenize the input arguments
     for (int i = 1; i < slash->argc; ++i) {
         const char* arg = slash->argv[i];
-        // Check if the argument is of the form "--key=value"
+        if (short_opts && strncmp(arg, "-", 1) == 0 && strncmp(arg, "--", 2) != 0 && strlen(arg) >= 2) {
+            // Single dash, short option
+            unsigned char first = (unsigned char)arg[1];
+            if (param_short_map[first] && param_name_map[first]) {
+                // Check for -x=val or -x val
+                const char *eq = strchr(arg, '=');
+                const char *value = NULL;
+                if (eq) {
+                    value = eq + 1;
+                } else if (i + 1 < slash->argc) {
+                    value = slash->argv[++i];
+                } else {
+                    value = "1"; // treat as flag if no value
+                }
+                // Always use a new reference for the key
+                const char *key_str = PyUnicode_AsUTF8(param_name_map[first]);
+                if (!key_str) {
+                    PyErr_SetString(PyExc_RuntimeError, "Failed to extract key string for short option");
+                    return -1;
+                }
+                PyObject *py_key AUTO_DECREF = PyUnicode_FromString(key_str);
+                PyObject *py_value AUTO_DECREF = PyUnicode_FromString(value);
+                if (!py_key || !py_value) {
+                    PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for short option key or value");
+                    return -1;
+                }
+                if (PyDict_SetItem(kwargs_dict, py_key, py_value) != 0) {
+                    PyErr_SetString(PyExc_RuntimeError, "Failed to add short option to kwargs");
+                    return -1;
+                }
+                continue;
+            }
+        }
         if (strncmp(arg, "--", 2) != 0) {
             /* Token is not a keyword argument, simply add it as a positional argument to *args_out */
             PyObject* py_arg = PyUnicode_FromString(arg);
             if (py_arg == NULL) {
-                // Handle memory allocation failure
                 PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for positional argument");
                 return -1;
             }
             assert(parsed_positional_args < slash->argc);
-            PyTuple_SET_ITEM(args_tuple, parsed_positional_args++, py_arg);  // Add the argument to the args_out list
-            continue; // Skip processing for keyword arguments
+            PyTuple_SET_ITEM(args_tuple, parsed_positional_args++, py_arg);
+            continue;  /* Skip processing for keyword arguments */
         }
 
         /* Token is a keyword argument, now try to split it into key and value */
         char* equal_sign = strchr(arg, '=');
         if (equal_sign == NULL) {
-            // Invalid format for keyword argument
             PyErr_SetString(PyExc_ValueError, "Invalid format for keyword argument");
             return -1;
         }
-
-        *equal_sign = '\0'; // Null-terminate the key
-        const char* key = arg + 2; // Skip "--"
+        *equal_sign = '\0';  /* Null-terminate the key */
+        const char* key = arg + 2;  /* Skip "--" */
         const char* value = equal_sign + 1;
-        
-        // Create Python objects for key and value
         PyObject* py_key AUTO_DECREF = PyUnicode_FromString(key);
         PyObject* py_value AUTO_DECREF = PyUnicode_FromString(value);
         if (py_key == NULL || py_value == NULL) {
-            // Handle memory allocation failure
             PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for key or value");
             return -1;
         }
@@ -91,21 +138,16 @@ int pycsh_parse_slash_args(const struct slash *slash, PyObject **args_out, PyObj
             i.e, the same keyword-argument being passed multiple times:
             mycommand --key=value --key=value --key=value2 */
 
-        // Add the key-value pair to the kwargs_out dictionary
+        /* Add the key-value pair to the kwargs_out dictionary */
         if (PyDict_SetItem(kwargs_dict, py_key, py_value) != 0) {
-            // Handle dictionary insertion failure
             PyErr_SetString(PyExc_RuntimeError, "Failed to add key-value pair to kwargs dictionary");
             return -1;
         }
 
-        /* Refcnt should be 2 after we have added to the dict. */
-        assert(py_key->ob_refcnt != 1);
-        assert(py_value->ob_refcnt != 1);
     }
 
     /* Resize tuple to actual length, which should only ever shrink it from a maximal value of slash->argc */
     if (_PyTuple_Resize(&args_tuple, parsed_positional_args) < 0) {
-        // Handle tuple resizing failure
         PyErr_SetString(PyExc_RuntimeError, "Failed to resize tuple for positional arguments");
         return -1;
     }
@@ -563,7 +605,7 @@ int SlashCommand_func(struct slash *slash) {
     }
 
     PythonSlashCommandObject *self = python_wraps_slash_command(command);
-    assert(self != NULL);  // Slash command must be wrapped by Python
+    assert(self != NULL);  // Slash command must be wrapped by Python. TODO Kevin: This assert fails with `watch python_func`
     // PyObject *python_callback = self->py_slash_func;
     PyObject *python_func = self->py_slash_func;
 
