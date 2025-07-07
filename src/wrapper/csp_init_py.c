@@ -45,21 +45,21 @@ __attribute__((weak)) void csp_router_set_running(bool is_running) {
 
 /* Keep track of whether `csp init` has been run, to prevent crashes from using CSP beforehand. */
 bool csp_initialized() {
-	return csp_router_is_running();
+    return csp_router_is_running();
 }
 
 void * py_router_task(void * param) {
     Py_Initialize();  // We need to initialize the Python interpreter before CSP may call any PythonParameter callbacks.
-	while(1) {
-		csp_route_work();
-	}
+    while(1) {
+        csp_route_work();
+    }
     Py_Finalize();
 }
 
 void * py_vmem_server_task(void * param) {
     // TODO Kevin: If vmem_server ever needs to access Python objects, we should call Py_Initialize() here.
-	vmem_server_loop(param);
-	return NULL;
+    vmem_server_loop(param);
+    return NULL;
 }
 
 PyObject * pycsh_csh_csp_init(PyObject * self, PyObject * args, PyObject * kwds) {
@@ -123,6 +123,59 @@ PyObject * pycsh_csh_csp_init(PyObject * self, PyObject * args, PyObject * kwds)
     Py_RETURN_NONE;
 }
 
+static char * pycsh_parse_zmq_sec_key(PyObject * key_file_obj, char key_buf[41]) {
+
+    assert(key_file_obj);
+    assert(key_buf);
+
+    if (PyUnicode_Check(key_file_obj)) {
+        // Use the string as the key directly
+        const char *key_str = PyUnicode_AsUTF8(key_file_obj);
+        if (!key_str) {
+            if (!PyErr_Occurred()) {
+                PyErr_SetString(PyExc_SystemError, "Could not convert key_file_obj to UTF-8 string");
+            }
+            return NULL;
+        }
+        strncpy(key_buf, key_str, 40);
+    
+        return key_buf;
+    }
+
+    // Try to treat as file-like: check for read() method and io.TextIOBase
+    PyObject *io_textiobase AUTO_DECREF = PyImport_ImportModule("io");
+    if (io_textiobase) {
+        PyObject *textiobase_type AUTO_DECREF = PyObject_GetAttrString(io_textiobase, "TextIOBase");
+        if (textiobase_type == NULL) {
+            PyErr_SetString(PyExc_ImportError, "Could not import io module to check file-like object");
+            return NULL;
+        }
+        if (!PyObject_IsInstance(key_file_obj, textiobase_type)) {
+            PyErr_SetString(PyExc_TypeError, "sec_key must be a string or a file-like object");
+            return NULL;
+        }
+        if (PyObject_IsInstance(key_file_obj, textiobase_type)) {
+            PyObject *read_result AUTO_DECREF = PyObject_CallMethod(key_file_obj, "read", NULL);
+            if (!read_result) {
+                return NULL;
+            }
+            const char *key_str = PyUnicode_AsUTF8(read_result);
+            if (!key_str) {
+                return NULL;
+            }
+            strncpy(key_buf, key_str, 40);
+            /* We are most often saved from newlines, by only reading out CURVE_KEYLEN.
+                But we still attempt to strip them, in case someone decides to use a short key. */
+            char * const newline = strchr(key_buf, '\n');
+            if (newline) {
+                *newline = '\0';
+            }
+        }
+    }
+
+    return key_buf;
+}
+
 PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * kwds) {
 
     static int ifidx = 0;
@@ -135,67 +188,46 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     int promisc = 0;
     int mask = 8;
     int dfl = 0;
-    int pubport = 6000;
-    int subport = 7000;
-    char * key_file = NULL;
-    char * sec_key CLEANUP_STR = NULL;
+    int subport = 0;
+    int pubport = 0;
+    PyObject * key_file_obj = NULL;
 
     static char *kwlist[] = {"addr", "server", "promisc", "mask", "default", "pub_port", "sub_port", "sec_key", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiiiz:csp_add_zmq", kwlist, &addr, &server, &promisc, &mask, &dfl, &pubport, &subport, &key_file)) {
-		return NULL;  // TypeError is thrown
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiiiO:csp_add_zmq", kwlist, &addr, &server, &promisc, &mask, &dfl, &pubport, &subport, &key_file_obj)) {
+        return NULL;  // TypeError is thrown
+    }
+
+    if (key_file_obj == Py_None) {
+        key_file_obj = NULL;
+    }
+
+    char sec_key[41] = {0};
+    if (key_file_obj) {
+        if (pycsh_parse_zmq_sec_key(key_file_obj, sec_key) == NULL) {
+            return NULL;
+        }
     }
 
     if (subport == 0) {
-        subport = CSP_ZMQPROXY_SUBSCRIBE_PORT + ((key_file == NULL) ? 0 : 1);
+        subport = CSP_ZMQPROXY_SUBSCRIBE_PORT + (key_file_obj ? 1 : 0);
     }
 
     if (pubport == 0) {
-        pubport = CSP_ZMQPROXY_PUBLISH_PORT + ((key_file == NULL) ? 0 : 1);
+        pubport = CSP_ZMQPROXY_PUBLISH_PORT + (key_file_obj ? 1 : 0);
     }
 
-    if(key_file) {
-
-        char key_file_local[256];
-        if (key_file[0] == '~') {
-            strcpy(key_file_local, getenv("HOME"));
-            strcpy(&key_file_local[strlen(key_file_local)], &key_file[1]);
-        }
-        else {
-            strcpy(key_file_local, key_file);
-        }
-
-        FILE *file CLEANUP_FILE = fopen(key_file_local, "r");
-        if(file == NULL){
-            PyErr_Format(PyExc_IOError, "Could not open config %s", key_file_local);
-            return NULL;
-        }
-
-        #define CURVE_KEYLEN 41
-        sec_key = malloc(CURVE_KEYLEN * sizeof(char));
-        if (sec_key == NULL) {
-            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for secret key.");
-            return NULL;
-        }
-
-        if (fgets(sec_key, CURVE_KEYLEN, file) == NULL) {
-            PyErr_SetString(PyExc_IOError, "Failed to read secret key from file.");
-            return NULL;
-        }
-        /* We are most often saved from newlines, by only reading out CURVE_KEYLEN.
-            But we still attempt to strip them, in case someone decides to use a short key. */
-        char * const newline = strchr(sec_key, '\n');
-        if (newline) {
-            *newline = '\0';
-        }
-    }
-
+    /* TODO Kevin: Key must be exactly 40 characters long, otherwise ZMQ gives valgrind errors.
+        We should probably check for that here and in CSH. */
     csp_iface_t * iface;
-    // TODO: We need to figure out how to correctly align the interface with respect to pub and sub ports. They are swapped
-    csp_zmqhub_init_filter2((const char *) name, server, addr, mask, promisc, &iface, sec_key, pubport, subport);
+    int error = csp_zmqhub_init_filter2((const char *) name, server, addr, mask, promisc, &iface, sec_key, subport, pubport);
+    if (error != CSP_ERR_NONE) {
+        PyErr_Format(PyExc_SystemError, "Failed to add zmq interface [%s], error: %d", server, error);
+        return NULL;
+    }
     iface->is_default = dfl;
     iface->addr = addr;
-	iface->netmask = mask;
+    iface->netmask = mask;
 
     Py_RETURN_NONE;
 }
@@ -215,8 +247,8 @@ PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject *
 
     static char *kwlist[] = {"addr", "mask", "default", "baud", "uart", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|iiiz:csp_add_kiss", kwlist, &addr, &mask, &dfl, &baud, &device))
-		return NULL;  // TypeError is thrown
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|iiiz:csp_add_kiss", kwlist, &addr, &mask, &dfl, &baud, &device))
+        return NULL;  // TypeError is thrown
 
     csp_usart_conf_t conf = {
         .device = device,
@@ -236,7 +268,7 @@ PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject *
 
     iface->is_default = dfl;
     iface->addr = addr;
-	iface->netmask = mask;
+    iface->netmask = mask;
 
     Py_RETURN_NONE;
 }
@@ -259,8 +291,8 @@ PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * 
 
     static char *kwlist[] = {"addr", "promisc", "mask", "default", "baud", "can", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|iiiiz:csp_add_can", kwlist, &addr, &promisc, &mask, &dfl, &baud, &device))
-		return NULL;  // TypeError is thrown
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|iiiiz:csp_add_can", kwlist, &addr, &promisc, &mask, &dfl, &baud, &device))
+        return NULL;  // TypeError is thrown
 
    csp_iface_t * iface;
     
@@ -274,7 +306,7 @@ PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * 
 
     iface->is_default = dfl;
     iface->addr = addr;
-	iface->netmask = mask;
+    iface->netmask = mask;
 
     Py_RETURN_NONE;
 }
@@ -325,8 +357,8 @@ PyObject * pycsh_csh_csp_ifadd_eth(PyObject * self, PyObject * args, PyObject * 
 
     static char *kwlist[] = {"addr", "device", "promisc", "mask", "default", "mtu", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|ziiii:csp_add_eth", kwlist, &addr, &device, &promisc, &mask, &dfl, &mtu))
-		return NULL;  // TypeError is thrown
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|ziiii:csp_add_eth", kwlist, &addr, &device, &promisc, &mask, &dfl, &mtu))
+        return NULL;  // TypeError is thrown
 
     eth_select_interface(&device);
     if (strlen(device) == 0) {
@@ -344,7 +376,7 @@ PyObject * pycsh_csh_csp_ifadd_eth(PyObject * self, PyObject * args, PyObject * 
 
     iface->is_default = dfl;
     iface->addr = addr;
-	iface->netmask = mask;
+    iface->netmask = mask;
 
     Py_RETURN_NONE;
 }
@@ -366,8 +398,8 @@ PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * 
 
     static char *kwlist[] = {"addr", "server", "promisc", "mask", "default", "listen_port", "remote_port", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiii:csp_add_udp", kwlist, &addr, &server, &promisc, &mask, &dfl, &listen_port, &remote_port))
-		return NULL;  // TypeError is thrown
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiii:csp_add_udp", kwlist, &addr, &server, &promisc, &mask, &dfl, &listen_port, &remote_port))
+        return NULL;  // TypeError is thrown
 
     csp_iface_t * iface = malloc(sizeof(csp_iface_t));
     if (iface == NULL) {
@@ -391,7 +423,7 @@ PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * 
 
     iface->is_default = dfl;
     iface->addr = addr;
-	iface->netmask = mask;
+    iface->netmask = mask;
 
     Py_RETURN_NONE;
 }
@@ -412,8 +444,8 @@ PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * 
 
     static char *kwlist[] = {"addr", "tun_src", "tun_dst", "promisc", "mask", "default", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "III|iii:csp_add_tun", kwlist, &addr, &tun_src, &tun_dst, &promisc, &mask, &dfl))
-		return NULL;  // TypeError is thrown
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "III|iii:csp_add_tun", kwlist, &addr, &tun_src, &tun_dst, &promisc, &mask, &dfl))
+        return NULL;  // TypeError is thrown
 
     csp_iface_t * iface;
     iface = malloc(sizeof(csp_iface_t));
@@ -425,7 +457,7 @@ PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * 
 
     iface->is_default = dfl;
     iface->addr = addr;
-	iface->netmask = mask;
+    iface->netmask = mask;
 
     Py_RETURN_NONE;
 }
@@ -439,8 +471,8 @@ PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject
 
     static char *kwlist[] = {"addr", "mask", "interface", "via", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIs|I:csp_add_route", kwlist, &addr, &mask, &interface_name, &via)) {
-		return NULL;  // TypeError is thrown
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIs|I:csp_add_route", kwlist, &addr, &mask, &interface_name, &via)) {
+        return NULL;  // TypeError is thrown
     }
 
     /* TODO Kevin: Can't quite decide between exceptions and error-as-value here.

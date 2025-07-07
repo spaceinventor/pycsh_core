@@ -639,7 +639,7 @@ int SlashCommand_func(struct slash *slash) {
     /* Create the arguments. */
     PyObject *py_args AUTO_DECREF = NULL;
     PyObject *py_kwargs AUTO_DECREF = NULL;
-    if (pycsh_parse_slash_args(slash, &py_args, &py_kwargs) != 0) {
+    if (pycsh_parse_slash_args(self, slash, &py_args, &py_kwargs) != 0) {
         PyErr_Print();
         return SLASH_EINVAL;
     }
