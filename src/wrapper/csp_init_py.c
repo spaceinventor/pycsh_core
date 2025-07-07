@@ -220,7 +220,10 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     /* TODO Kevin: Key must be exactly 40 characters long, otherwise ZMQ gives valgrind errors.
         We should probably check for that here and in CSH. */
     csp_iface_t * iface;
-    int error = csp_zmqhub_init_filter2((const char *) name, server, addr, mask, promisc, &iface, sec_key, subport, pubport);
+
+    /* DO NOT ASK WHY THESE ARE SWAPPED -------------------------------------------------------------------vvvvvvv  vvvvvvv*/
+    int error = csp_zmqhub_init_filter2((const char *) name, server, addr, mask, promisc, &iface, sec_key, pubport, subport);
+    /* And if you REALLY want to know, have a look at csp_if_zmqhub.c, lines 223 to 227 */
     if (error != CSP_ERR_NONE) {
         PyErr_Format(PyExc_SystemError, "Failed to add zmq interface [%s], error: %d", server, error);
         return NULL;
