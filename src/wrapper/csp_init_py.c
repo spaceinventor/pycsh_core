@@ -192,9 +192,9 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     int pubport = 0;
     PyObject * key_file_obj = NULL;
 
-    static char *kwlist[] = {"addr", "server", "promisc", "mask", "default", "pub_port", "sub_port", "sec_key", NULL};
+    static char *kwlist[] = {"addr", "server", "promisc", "mask", "default", "sub_port", "pub_port", "sec_key", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiiiO:csp_add_zmq", kwlist, &addr, &server, &promisc, &mask, &dfl, &pubport, &subport, &key_file_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiiiO:csp_add_zmq", kwlist, &addr, &server, &promisc, &mask, &dfl, &subport, &pubport, &key_file_obj)) {
         return NULL;  // TypeError is thrown
     }
 
