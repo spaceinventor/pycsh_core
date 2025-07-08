@@ -135,6 +135,7 @@ PyObject * pycsh_csp_cmp_uptime(PyObject * self, PyObject * args, PyObject * kwd
     csp_get_uptime(node, timeout, &uptime);
     Py_END_ALLOW_THREADS;
 
+    static_assert(sizeof(unsigned int) == sizeof(uint32_t));
     return Py_BuildValue("I", uptime);
 }
 

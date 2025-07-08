@@ -15,7 +15,7 @@
 __attribute__((weak)) 
 PyThreadState *main_thread_state = NULL;
 
-int SlashCommand_func(struct slash *slash);
+int SlashCommand_func(struct slash *slash, void *context);
 
 /**
  * @brief Check if this slash command is wrapped by a PythonSlashCommandObject.
@@ -23,7 +23,7 @@ int SlashCommand_func(struct slash *slash);
  * @return borrowed reference to the wrapping PythonSlashCommandObject if wrapped, otherwise NULL.
  */
 PythonSlashCommandObject *python_wraps_slash_command(const struct slash_command * command) {
-    if (command == NULL || command->func != SlashCommand_func)
+    if (command == NULL || command->func_ctx != SlashCommand_func)
         return NULL;  // This slash command is not wrapped by PythonSlashCommandObject
     return (PythonSlashCommandObject *)((char *)command - offsetof(PythonSlashCommandObject, command_heap));
 }
@@ -579,20 +579,10 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
     return TYPECAST_SUCCESS;
 }
 
-
 /**
  * @brief Shared callback for all slash_commands wrapped by a Slash object instance.
  */
-int SlashCommand_func(struct slash *slash) {
-
-    char *args;
-
-    /* We need to find our way back to the storage location is this called slash command */
-    extern struct slash_command * slash_command_find(struct slash *slash, char *line, size_t linelen, char **args);
-    struct slash_command *command = slash_command_find(slash, slash->buffer, strlen(slash->buffer), &args);
-    assert(command != NULL);  // If slash was able to execute this function, then the command should very much exist
-    /* If we find a command that doesn't use this function, then there's likely duplicate or multiple applicable commands in the list.
-        We could probably manually iterate until we find what is hopefully our command, but that also has issues.*/
+int SlashCommand_func(struct slash *slash, void *context) {
 
     /* Re-acquire GIL */
     PyEval_RestoreThread(main_thread_state);
@@ -604,9 +594,10 @@ int SlashCommand_func(struct slash *slash) {
         assert(false);
     }
 
-    PythonSlashCommandObject *self = python_wraps_slash_command(command);
-    assert(self != NULL);  // Slash command must be wrapped by Python. TODO Kevin: This assert fails with `watch python_func`
-    // PyObject *python_callback = self->py_slash_func;
+    assert(context != NULL);
+    PythonSlashCommandObject *self = (PythonSlashCommandObject *)context;
+    struct slash_command *command = &self->command_heap;
+
     PyObject *python_func = self->py_slash_func;
 
     /* It probably doesn't make sense to have a slash command without a corresponding function,
@@ -838,7 +829,6 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
 
     if (args) {
         args = safe_strdup(args);
-
     } else {
         char *docstr_wo_newline CLEANUP_STR = format_python_func_help((PyObject*)py_slash_func, false, short_opts);
         //char *docstr_wo_newline CLEANUP_STR = print_function_signature_w_docstr((PyObject*)py_slash_func, false);
@@ -859,7 +849,8 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
     const struct slash_command temp_command = {
         .args = args,
         .name = safe_strdup(name),
-        .func = SlashCommand_func,
+        .func_ctx = SlashCommand_func,
+        .context = (void *)self,  // We will use this to find the PythonSlashCommandObject instance
         .completer = slash_path_completer,  // TODO Kevin: It should probably be possible for the user to change the completer.
     };
 
