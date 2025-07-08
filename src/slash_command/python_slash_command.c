@@ -339,7 +339,9 @@ static char *format_python_func_help(PyObject *func, int only_print, bool short_
 
         PyObject *arg_str AUTO_DECREF = PyUnicode_FromString("  ");
 
-        if (hint && PyType_IsSubtype((PyTypeObject*)hint, &PyBool_Type)) {
+        /* `PyType_Check(hint)` is required to prevent segmentation faults
+            for special typing objects such as `collections.abc.Container[int, pycsh.Ident]` */
+        if (hint && PyType_Check(hint) && PyType_IsSubtype((PyTypeObject*)hint, &PyBool_Type)) {
 
             if (short_opts) {
                 PyUnicode_Append(&arg_str, PyUnicode_FromFormat("-%c, ", argname[0]));
@@ -363,7 +365,7 @@ static char *format_python_func_help(PyObject *func, int only_print, bool short_
         } else {
 
             char * c_str_type = "STR";
-            if (hint && PyType_IsSubtype((PyTypeObject*)hint, &PyLong_Type)) {
+            if (hint && PyType_Check(hint) && PyType_IsSubtype((PyTypeObject*)hint, &PyLong_Type)) {
                 c_str_type = "NUM";
             }
 
