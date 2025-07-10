@@ -208,6 +208,8 @@ static char* _tuple_to_slash_string(const char * command_name, PyObject* args, P
 
 static PyObject * SlashCommand_call(SlashCommandObject *self, PyObject *args, PyObject *kwds) {
 
+	assert(self->command);  // It is invalid for SlashCommandObject to exist without wrapping a slash command
+	assert(self->command->context);
 	char *line CLEANUP_STR = _tuple_to_slash_string(self->command->name, args, kwds);
 
 	if (line == NULL) {
@@ -225,7 +227,6 @@ static PyObject * SlashCommand_call(SlashCommandObject *self, PyObject *args, Py
     char hist_buf[HISTORY_SIZE];
     slash_create_static(&slas, line, LINE_SIZE, hist_buf, HISTORY_SIZE);
 	
-	assert(self->command);  // It is invalid for SlashCommandObject to exist without wrapping a slash command
 
 	/* Implement this function to perform logging for example */
 	slash_on_execute_hook(line);
@@ -250,11 +251,14 @@ static PyObject * SlashCommand_call(SlashCommandObject *self, PyObject *args, Py
 
 	slas.argc = argc;
 	slas.argv = argv;
-	const int ret = self->command->func(&slas);
+
+	int ret = self->command->func_ctx(&slas, self->command->context);
 
 	extern void slash_command_usage(struct slash *slash, struct slash_command *command);
 	if (ret == SLASH_EUSAGE)
 		slash_command_usage(&slas, self->command);
+
+	slash_on_execute_post_hook(line, self->command);
 
 	return Py_BuildValue("i", ret);
 }

@@ -23,8 +23,10 @@ int SlashCommand_func(struct slash *slash, void *context);
  * @return borrowed reference to the wrapping PythonSlashCommandObject if wrapped, otherwise NULL.
  */
 PythonSlashCommandObject *python_wraps_slash_command(const struct slash_command * command) {
-    if (command == NULL || command->func_ctx != SlashCommand_func)
-        return NULL;  // This slash command is not wrapped by PythonSlashCommandObject
+    /* Every `PythonSlashCommand->command` requires `->context`.
+        So if it doesn't have that, it isn't one of ours. */
+    if (command == NULL  || command->context == NULL || command->func_ctx != SlashCommand_func)
+        return NULL;  /* This slash command is not wrapped by PythonSlashCommandObject */
     return (PythonSlashCommandObject *)((char *)command - offsetof(PythonSlashCommandObject, command_heap));
 }
 
@@ -798,7 +800,7 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
 
 /* NOTE: Overriding an existing PythonSlashCommand here will most likely cause a memory leak. SLIST_REMOVE() will not Py_DECREF() */
 #if 0  /* It's okay if a command with this name already exists, Overriding it is an intended feature. */
-    if (slash_list_find_name(0, name)) {
+    if (slash_list_find_name(name)) {
         PyErr_Format(PyExc_ValueError, "Command with name \"%s\" already exists", name);
         return NULL;
     }
