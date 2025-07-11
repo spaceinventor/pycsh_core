@@ -43,13 +43,15 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
     PyObject *py_func = self->py_slash_func;
     const bool short_opts = self->short_opts;
 
-    // Build short option map if needed
+    // Build short option map and boolean map if needed
     char param_short_map[256] = {0};
     PyObject *param_name_map[256] = {0};
+    char param_short_is_bool[256] = {0};
     if (short_opts) {
         PyObject *func_code AUTO_DECREF = PyObject_GetAttrString(py_func, "__code__");
         PyObject *co_varnames AUTO_DECREF = PyObject_GetAttrString(func_code, "co_varnames");
         PyObject *co_argcount_obj AUTO_DECREF = PyObject_GetAttrString(func_code, "co_argcount");
+        PyObject *annotations AUTO_DECREF = PyObject_GetAttrString(py_func, "__annotations__");
         if (!co_varnames || !PyTuple_Check(co_varnames) || !co_argcount_obj || !PyLong_Check(co_argcount_obj)) {
             PyErr_SetString(PyExc_TypeError, "Unable to inspect function parameters for short opts");
             return -1;
@@ -63,6 +65,46 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
             unsigned char first = (unsigned char)name[0];
             param_short_map[first] = 1;
             param_name_map[first] = name_obj;
+            // Generic type inference: if no type-hint, defer to default value's type
+            int param_type = 0; // 0=unknown, 1=bool, 2=int, 3=float, 4=str
+            PyObject *hint = NULL;
+            if (annotations && PyDict_Check(annotations)) {
+                hint = PyDict_GetItem(annotations, name_obj); // borrowed
+                if (hint && PyType_Check(hint)) {
+                    if (PyType_IsSubtype((PyTypeObject*)hint, &PyBool_Type)) {
+                        param_type = 1;
+                    } else if (PyType_IsSubtype((PyTypeObject*)hint, &PyLong_Type)) {
+                        param_type = 2;
+                    } else if (PyType_IsSubtype((PyTypeObject*)hint, &PyFloat_Type)) {
+                        param_type = 3;
+                    } else if (PyType_IsSubtype((PyTypeObject*)hint, &PyUnicode_Type)) {
+                        param_type = 4;
+                    }
+                }
+            }
+            if (param_type == 0) {
+                // If no type-hint, check if default value exists and use its type
+                PyObject *defaults AUTO_DECREF = PyObject_GetAttrString(py_func, "__defaults__");
+                if (defaults && PyTuple_Check(defaults)) {
+                    Py_ssize_t num_defaults = PyTuple_Size(defaults);
+                    Py_ssize_t default_idx = i - (co_argcount - num_defaults);
+                    if (default_idx >= 0 && default_idx < num_defaults) {
+                        PyObject *default_val = PyTuple_GetItem(defaults, default_idx); // borrowed
+                        if (default_val == Py_True || default_val == Py_False) {
+                            param_type = 1;
+                        } else if (PyLong_Check(default_val)) {
+                            param_type = 2;
+                        } else if (PyFloat_Check(default_val)) {
+                            param_type = 3;
+                        } else if (PyUnicode_Check(default_val)) {
+                            param_type = 4;
+                        }
+                    }
+                }
+            }
+            param_short_is_bool[first] = (param_type == 1);
+            // Optionally, you could add param_short_type[first] = param_type for future use
+            printf("Parameter '%s' mapped to short option '%c', type: %d (1=bool,2=int,3=float,4=str), hint: %p\n", name, first, param_type, hint);
         }
     }
 
@@ -79,33 +121,54 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
             // Single dash, short option
             unsigned char first = (unsigned char)arg[1];
             if (param_short_map[first] && param_name_map[first]) {
-                // Check for -x=val or -x val
-                const char *eq = strchr(arg, '=');
-                const char *value = NULL;
-                if (eq) {
-                    value = eq + 1;
-                } else if (i + 1 < slash->argc) {
-                    value = slash->argv[++i];
+                // For boolean short opts, treat as flag only (no value allowed)
+                if (param_short_is_bool[first]) {
+                    printf("Processing short option: %s\n", arg);
+                    const char *key_str = PyUnicode_AsUTF8(param_name_map[first]);
+                    if (!key_str) {
+                        PyErr_SetString(PyExc_RuntimeError, "Failed to extract key string for short option");
+                        return -1;
+                    }
+                    PyObject *py_key AUTO_DECREF = PyUnicode_FromString(key_str);
+                    PyObject *py_value AUTO_DECREF = PyUnicode_FromString("1"); // True
+                    if (!py_key || !py_value) {
+                        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for short option key or value");
+                        return -1;
+                    }
+                    if (PyDict_SetItem(kwargs_dict, py_key, py_value) != 0) {
+                        PyErr_SetString(PyExc_RuntimeError, "Failed to add short option to kwargs");
+                        return -1;
+                    }
+                    // Do NOT consume the next argument for boolean short opts
+                    continue;
                 } else {
-                    value = "1"; // treat as flag if no value
+                    // Non-bool short opts: allow value
+                    const char *eq = strchr(arg, '=');
+                    const char *value = NULL;
+                    if (eq) {
+                        value = eq + 1;
+                    } else if (i + 1 < slash->argc) {
+                        value = slash->argv[++i];
+                    } else {
+                        value = "1"; // treat as flag if no value
+                    }
+                    const char *key_str = PyUnicode_AsUTF8(param_name_map[first]);
+                    if (!key_str) {
+                        PyErr_SetString(PyExc_RuntimeError, "Failed to extract key string for short option");
+                        return -1;
+                    }
+                    PyObject *py_key AUTO_DECREF = PyUnicode_FromString(key_str);
+                    PyObject *py_value AUTO_DECREF = PyUnicode_FromString(value);
+                    if (!py_key || !py_value) {
+                        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for short option key or value");
+                        return -1;
+                    }
+                    if (PyDict_SetItem(kwargs_dict, py_key, py_value) != 0) {
+                        PyErr_SetString(PyExc_RuntimeError, "Failed to add short option to kwargs");
+                        return -1;
+                    }
+                    continue;
                 }
-                // Always use a new reference for the key
-                const char *key_str = PyUnicode_AsUTF8(param_name_map[first]);
-                if (!key_str) {
-                    PyErr_SetString(PyExc_RuntimeError, "Failed to extract key string for short option");
-                    return -1;
-                }
-                PyObject *py_key AUTO_DECREF = PyUnicode_FromString(key_str);
-                PyObject *py_value AUTO_DECREF = PyUnicode_FromString(value);
-                if (!py_key || !py_value) {
-                    PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for short option key or value");
-                    return -1;
-                }
-                if (PyDict_SetItem(kwargs_dict, py_key, py_value) != 0) {
-                    PyErr_SetString(PyExc_RuntimeError, "Failed to add short option to kwargs");
-                    return -1;
-                }
-                continue;
             }
         }
         if (strncmp(arg, "--", 2) != 0) {
@@ -314,10 +377,16 @@ static char *format_python_func_help(PyObject *func, int only_print, bool short_
 
     PyUnicode_Append(&output, PyUnicode_FromString("\n"));
 
+    // Improved docstring formatting: avoid redundant newlines, trim leading/trailing whitespace
     if (doc && PyUnicode_Check(doc)) {
-        PyUnicode_Append(&output, PyUnicode_FromString("\n"));
-        PyUnicode_Append(&output, doc);
-        PyUnicode_Append(&output, PyUnicode_FromString("\n"));
+        Py_ssize_t doc_len = PyUnicode_GET_LENGTH(doc);
+        // Remove leading/trailing whitespace and newlines
+        PyObject *doc_stripped AUTO_DECREF = PyObject_CallMethod(doc, "strip", NULL);
+        if (doc_stripped && PyUnicode_GET_LENGTH(doc_stripped) > 0) {
+            PyUnicode_Append(&output, PyUnicode_FromString("\n"));
+            PyUnicode_Append(&output, doc_stripped);
+            PyUnicode_Append(&output, PyUnicode_FromString("\n"));
+        }
     }
 
     PyUnicode_Append(&output, PyUnicode_FromString("\n"));
@@ -485,7 +554,7 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
 
             PyObject *hint = PyDict_GetItem(annotations, param_name);  // Borrowed reference
             
-            if (!hint) {
+            if (!hint || !PyType_Check(hint)) {
                 continue;
             }
 
@@ -548,6 +617,7 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
             } else if (hint == (PyObject*)&PyFloat_Type && PyUnicode_Check(value)) {
                 new_value = PyFloat_FromString(value);
             } else if (hint == (PyObject*)&PyBool_Type && PyUnicode_Check(value)) {
+                char * value_str = PyUnicode_AsUTF8(value);
                 PyObject *lowered AUTO_DECREF = PyObject_CallMethod(value, "lower", NULL);
                 if (!lowered) {
                     PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
@@ -560,6 +630,7 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
                 } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "false") == 0) {
                     new_value = Py_False;
                 } else {
+                    new_value = value;
                     PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
                     assert(python_func_name);
                     PyErr_Format(PyExc_ValueError, "Invalid value '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(key), PyUnicode_AsUTF8(python_func_name));
@@ -795,6 +866,20 @@ static int PythonSlashCommand_set_keep_alive(PythonSlashCommandObject *self, PyO
     return 0;
 }
 
+static void PythonSlashCommand_on_remove_hook(struct slash_command *command) {
+    
+    assert(command != NULL);
+
+    /* We are being removed from the command list.
+        Tell Python that it no longer holds a reference to us. */
+    PythonSlashCommandObject *py_slash_command = python_wraps_slash_command(command);
+    assert(py_slash_command != NULL);
+    printf("Removing Python slash command '%s'\n", command->name);
+    if (py_slash_command != NULL) {
+        PythonSlashCommand_set_keep_alive(py_slash_command, Py_False, NULL);
+    }
+}
+
 /* Internal API for creating a new PythonSlashCommandObject. */
 static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, char * name, const char * args, const PyObject * py_slash_func, bool short_opts) {
 
@@ -856,6 +941,7 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
         .func_ctx = SlashCommand_func,
         .context = (void *)self,  // We will use this to find the PythonSlashCommandObject instance
         .completer = slash_path_completer,  // TODO Kevin: It should probably be possible for the user to change the completer.
+        //.on_remove_hook = PythonSlashCommand_on_remove_hook,
     };
 
     /* NOTE: This memcpy() seems to be the best way to deal with the fact that self->command->func is const  */
@@ -871,10 +957,7 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
         return NULL;
     } else if (res > 0) {
         printf("Slash command '%s' is overriding an existing command\n", self->command_heap.name);
-        PythonSlashCommandObject *py_slash_command = python_wraps_slash_command(existing);
-        if (py_slash_command != NULL) {
-            PythonSlashCommand_set_keep_alive(py_slash_command, Py_False, NULL);
-        }
+        
     }
 
     return self;
