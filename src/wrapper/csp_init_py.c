@@ -106,8 +106,8 @@ PyObject * pycsh_csh_csp_init(PyObject * self, PyObject * args, PyObject * kwds)
     csp_bind_callback(csp_service_handler, CSP_ANY);
     csp_bind_callback(param_serve, PARAM_PORT_SERVER);
 
-    csp_router_set_running(true);
     static pthread_t router_handle;
+    csp_router_set_running(true);
     pthread_create(&router_handle, NULL, &py_router_task, NULL);
     static pthread_t vmem_server_handle;
     pthread_create(&vmem_server_handle, NULL, &py_vmem_server_task, NULL);
@@ -188,13 +188,13 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     int promisc = 0;
     int mask = 8;
     int dfl = 0;
-    int subport = 0;
     int pubport = 0;
+    int subport = 0;
     PyObject * key_file_obj = NULL;
 
-    static char *kwlist[] = {"addr", "server", "promisc", "mask", "default", "sub_port", "pub_port", "sec_key", NULL};
+    static char *kwlist[] = {"addr", "server", "promisc", "mask", "default", "pub_port", "sub_port", "sec_key", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiiiO:csp_add_zmq", kwlist, &addr, &server, &promisc, &mask, &dfl, &subport, &pubport, &key_file_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|iiiiiO:csp_add_zmq", kwlist, &addr, &server, &promisc, &mask, &dfl, &pubport, &subport, &key_file_obj)) {
         return NULL;  // TypeError is thrown
     }
 
@@ -209,12 +209,14 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
         }
     }
 
-    if (subport == 0) {
-        subport = CSP_ZMQPROXY_SUBSCRIBE_PORT + (key_file_obj ? 1 : 0);
+    /* `CSP_ZMQPROXY_SUBSCRIBE_PORT` and `CSP_ZMQPROXY_PUBLISH_PORT` are swapped in `lib/csp/include/csp/interfaces/csp_if_zmqhub.h`.
+        So we unswap them here. */
+    if (pubport == 0) {
+        pubport = CSP_ZMQPROXY_SUBSCRIBE_PORT + (key_file_obj ? 1 : 0);
     }
 
-    if (pubport == 0) {
-        pubport = CSP_ZMQPROXY_PUBLISH_PORT + (key_file_obj ? 1 : 0);
+    if (subport == 0) {
+        subport = CSP_ZMQPROXY_PUBLISH_PORT + (key_file_obj ? 1 : 0);
     }
 
     /* TODO Kevin: Key must be exactly 40 characters long, otherwise ZMQ gives valgrind errors.
