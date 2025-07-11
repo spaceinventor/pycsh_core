@@ -1,4 +1,3 @@
-
 #include "python_slash_command.h"
 
 #include "structmember.h"
@@ -104,7 +103,6 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
             }
             param_short_is_bool[first] = (param_type == 1);
             // Optionally, you could add param_short_type[first] = param_type for future use
-            printf("Parameter '%s' mapped to short option '%c', type: %d (1=bool,2=int,3=float,4=str), hint: %p\n", name, first, param_type, hint);
         }
     }
 
@@ -130,7 +128,7 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
                         return -1;
                     }
                     PyObject *py_key AUTO_DECREF = PyUnicode_FromString(key_str);
-                    PyObject *py_value AUTO_DECREF = PyUnicode_FromString("1"); // True
+                    PyObject *py_value = Py_True;
                     if (!py_key || !py_value) {
                         PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for short option key or value");
                         return -1;
@@ -510,6 +508,55 @@ typedef enum {
 } typecast_result_t;
 
 /**
+ * @brief Typecast a value to the hinted type if possible.
+ * 
+ * @param hint The type hint to cast to.
+ * @param value The value to be typecasted.
+ * @param python_func The Python function for error reporting.
+ * @param param_name The name of the parameter being typecasted, used for error messages.
+ * @return PyObject* New reference to the typecasted value, or NULL on error.
+ */
+static PyObject * typecast_to_hinted_type(PyObject *hint, PyObject *value, PyObject *python_func, PyObject *param_name) {
+    if (!hint || !PyType_Check(hint)) {
+        return Py_NewRef(value);  // No type hint, return original value
+    }
+
+    // Handle type casting based on the type hint
+    if (hint == (PyObject*)&PyLong_Type && PyUnicode_Check(value)) {
+        return PyLong_FromUnicodeObject(value, 10);
+    } else if (hint == (PyObject*)&PyFloat_Type && PyUnicode_Check(value)) {
+        return PyFloat_FromString(value);
+    } else if (hint == (PyObject*)&PyBool_Type) {
+        if (value == Py_True || value == Py_False) {
+            return Py_NewRef(value);
+        } else if (PyUnicode_Check(value)) {
+            PyObject *lowered AUTO_DECREF = PyObject_CallMethod(value, "lower", NULL);
+            if (!lowered) {
+                PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
+                assert(python_func_name);
+                PyErr_Format(PyExc_ValueError, "Failed to create lowered version of '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(param_name), PyUnicode_AsUTF8(python_func_name));
+            }
+            if (lowered && PyUnicode_CompareWithASCIIString(lowered, "true") == 0) {
+                return Py_NewRef(Py_True);
+            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "false") == 0) {
+                return Py_NewRef(Py_False);
+            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "1") == 0) {
+                return Py_NewRef(Py_True);
+            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "0") == 0) {
+                return Py_NewRef(Py_False);
+            } else {
+                PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
+                assert(python_func_name);
+                PyErr_Format(PyExc_ValueError, "Invalid value '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(param_name), PyUnicode_AsUTF8(python_func_name));
+                return NULL;
+            }
+        }
+    }
+
+    return Py_NewRef(value);  /* Unsupported type-hint, original value will have to do. */
+}
+
+/**
  * @brief Inspect type-hints of the provided PyObject *func, and convert the arguments in py_args and py_kwargs (in-place) to the their corresponding type-hinted type.
  * 
  * Source: https://chatgpt.com
@@ -550,49 +597,19 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
             
             // Get the corresponding parameter name for this positional argument
             PyObject *param_name = PyTuple_GetItem(varnames, i);  // Borrowed reference
-            assert(PyUnicode_Check(param_name));
+            assert(param_name && PyUnicode_Check(param_name));
 
             PyObject *hint = PyDict_GetItem(annotations, param_name);  // Borrowed reference
+            PyObject *new_arg = typecast_to_hinted_type(hint, arg, python_func, param_name);  // No Py_DecRef(), as PyTuple_SetItem() will steal the reference.
             
-            if (!hint || !PyType_Check(hint)) {
-                continue;
-            }
-
-            PyObject *new_arg AUTO_DECREF = NULL;
-
-            // Handle type casting based on the type hint
-            if (hint == (PyObject*)&PyLong_Type && PyUnicode_Check(arg)) {
-                new_arg = PyLong_FromUnicodeObject(arg, 10);
-            } else if (hint == (PyObject*)&PyFloat_Type && PyUnicode_Check(arg)) {
-                new_arg = PyFloat_FromString(arg);
-            } else if (hint == (PyObject*)&PyBool_Type && PyUnicode_Check(arg)) {
-                PyObject *lowered AUTO_DECREF = PyObject_CallMethod(arg, "lower", NULL);
-                if (!lowered) {
-                    PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
-                    assert(python_func_name);
-                    PyErr_Format(PyExc_ValueError, "Failed to create lowered version of '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(param_name), PyUnicode_AsUTF8(python_func_name));
-                }
-                
-                if (lowered && PyUnicode_CompareWithASCIIString(lowered, "true") == 0) {
-                    new_arg = Py_True;
-                } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "false") == 0) {
-                    new_arg = Py_False;
-                } else {
-                    PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
-                    assert(python_func_name);
-                    PyErr_Format(PyExc_ValueError, "Invalid value '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(param_name), PyUnicode_AsUTF8(python_func_name));
-                }
-                Py_XINCREF(new_arg);  // Manually increase ref count as PyTuple_SetItem will steal it
-            }
-
-            if (PyErr_Occurred()) {
+            if (!new_arg) {
+                assert(PyErr_Occurred());
                 return TYPECAST_INVALID_ARG;
             }
             
             if (new_arg) {
                 // Replace the item in the tuple, stealing the reference of new_arg
                 PyTuple_SetItem(py_args, i, new_arg);
-                new_arg = NULL;  // Set to NULL so that AUTO_DECREF doesn't decrement it
             }
         }
     }
@@ -609,43 +626,18 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
                 continue;
             }
 
-            PyObject *new_value AUTO_DECREF = NULL;
+            assert(key && PyUnicode_Check(key));
+            PyObject *new_kwarg AUTO_DECREF = typecast_to_hinted_type(hint, value, python_func, key);
 
-            // Handle type casting based on the type hint
-            if (hint == (PyObject*)&PyLong_Type && PyUnicode_Check(value)) {
-                new_value = PyLong_FromUnicodeObject(value, 10);
-            } else if (hint == (PyObject*)&PyFloat_Type && PyUnicode_Check(value)) {
-                new_value = PyFloat_FromString(value);
-            } else if (hint == (PyObject*)&PyBool_Type && PyUnicode_Check(value)) {
-                char * value_str = PyUnicode_AsUTF8(value);
-                PyObject *lowered AUTO_DECREF = PyObject_CallMethod(value, "lower", NULL);
-                if (!lowered) {
-                    PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
-                    assert(python_func_name);
-                    PyErr_Format(PyExc_ValueError, "Failed to create lowered version of '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(key), PyUnicode_AsUTF8(python_func_name));
-                }
-                
-                if (lowered && PyUnicode_CompareWithASCIIString(lowered, "true") == 0) {
-                    new_value = Py_True;
-                } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "false") == 0) {
-                    new_value = Py_False;
-                } else {
-                    new_value = value;
-                    PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
-                    assert(python_func_name);
-                    PyErr_Format(PyExc_ValueError, "Invalid value '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(key), PyUnicode_AsUTF8(python_func_name));
-                }
-                Py_INCREF(new_value);  // Manually increase ref count as PyTuple_SetItem will steal it
-            }
-
-            if (PyErr_Occurred()) {
+            if (!new_kwarg) {
+                assert(PyErr_Occurred());
                 return TYPECAST_INVALID_KWARG;
             }
             
-            if (new_value) {
+            if (new_kwarg) {
                 // Replace the value in the dictionary
-                PyDict_SetItem(py_kwargs, key, new_value);
-                new_value = NULL;  // Set to NULL so that AUTO_DECREF doesn't decrement it
+                PyDict_SetItem(py_kwargs, key, new_kwarg);
+                new_kwarg = NULL;  // Set to NULL so that AUTO_DECREF doesn't decrement it
             }
         }
     }
