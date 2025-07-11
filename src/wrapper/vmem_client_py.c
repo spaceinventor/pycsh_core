@@ -24,7 +24,8 @@ PyObject * pycsh_vmem_download(PyObject * self, PyObject * args, PyObject * kwds
 
 	unsigned int node = pycsh_dfl_node;
 	unsigned int timeout = pycsh_dfl_timeout;
-	unsigned int version = 2;
+	unsigned int version = 1;
+	unsigned int use_rdp = 1;
 
 	/* RDPOPT */
 	unsigned int window = 3;
@@ -35,9 +36,9 @@ PyObject * pycsh_vmem_download(PyObject * self, PyObject * args, PyObject * kwds
 	uint64_t address = 0;
 	unsigned int length = 0;
 
-    static char *kwlist[] = {"address", "length", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", NULL};
+    static char *kwlist[] = {"address", "length", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", "timeout", "version", "use_rdp", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|kIIIII:vmem_download", kwlist, &address, &length, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|IIIIIIIIp:vmem_download", kwlist, &address, &length, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &timeout, &version, &use_rdp))
 		return NULL;  // TypeError is thrown
 
 	printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
@@ -46,7 +47,7 @@ PyObject * pycsh_vmem_download(PyObject * self, PyObject * args, PyObject * kwds
 	printf("Downloading from: %08"PRIX64"\n", address);
 	char *odata = malloc(length);
 
-	vmem_download(node,timeout,address,length,odata,version,1);
+	vmem_download(node, timeout, address, length, odata, version, use_rdp);
 
 	PyObject * vmem_data = PyBytes_FromStringAndSize(odata, length);
 
