@@ -254,14 +254,11 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
 
          /* If `hint_type` is NULL, invalid kwarg or **kwarg. Let Python deal with it when we call the function. */
         PyObject * hint_type = PyDict_GetItemString(param_type_dict, key);
-        PyObject * param_name = param_name_map[key[0]];
-        if (hint_type) {
-            assert(param_name);
-        }
         PyObject *_py_str_arg AUTO_DECREF = PyUnicode_FromString(value);
+        PyObject *_py_str_key AUTO_DECREF = PyUnicode_FromString(key);
 
         /* If `hint_type` is NULL (as with either an invalid kwarg or **kwarg), we simply add a string. */
-        PyObject* py_value AUTO_DECREF = hint_type ? typecast_to_hinted_type(hint_type, _py_str_arg, py_func, param_name) : Py_NewRef(_py_str_arg);
+        PyObject* py_value AUTO_DECREF = hint_type ? typecast_to_hinted_type(hint_type, _py_str_arg, py_func, _py_str_key) : Py_NewRef(_py_str_arg);
         if (py_value == NULL) {
             return -1;
         }
