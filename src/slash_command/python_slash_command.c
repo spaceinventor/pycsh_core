@@ -29,6 +29,87 @@ PythonSlashCommandObject *python_wraps_slash_command(const struct slash_command 
     return (PythonSlashCommandObject *)((char *)command - offsetof(PythonSlashCommandObject, command_heap));
 }
 
+static PyObject *typecast_future_typehint(PyObject *hint) {
+    // If hint is a string (from __future__ import annotations), try to resolve it
+    if (!hint || !PyUnicode_Check(hint)) {
+        /* Already not a string, return as is. */
+        /* Could also be NULL, in which case we've probably been given an exception. */
+        return hint;
+    }
+
+    // Get the function's global namespace
+    PyObject *globals = PyEval_GetGlobals();
+    if (!globals) {
+        globals = PyModule_GetDict(PyImport_AddModule("__main__"));
+    }
+    PyObject *resolved_hint = PyRun_String(PyUnicode_AsUTF8(hint), Py_eval_input, globals, globals);
+    if (resolved_hint && PyType_Check(resolved_hint)) {
+        return resolved_hint;
+    }
+
+    // else: leave hint as string, will fallback to default value below
+    return hint;
+}
+
+/**
+ * @brief Typecast a value to the hinted type if possible.
+ * 
+ * @param hint The type hint to cast to.
+ * @param value The value to be typecasted.
+ * @param python_func The Python function for error reporting.
+ * @param param_name The name of the parameter being typecasted, used for error messages.
+ * @return PyObject* New reference to the typecasted value, or NULL on error.
+ */
+static PyObject * typecast_to_hinted_type(PyObject *hint, PyObject *value, PyObject *python_func, PyObject *param_name) {
+    if (!hint || !PyType_Check(hint)) {
+        return Py_NewRef(value);  // No type hint, return original value
+    }
+
+    // Handle type casting based on the type hint
+    if (hint == (PyObject*)&PyLong_Type && PyUnicode_Check(value)) {
+        return PyLong_FromUnicodeObject(value, 10);
+    } else if (hint == (PyObject*)&PyFloat_Type && PyUnicode_Check(value)) {
+        return PyFloat_FromString(value);
+    } else if (hint == (PyObject*)&PyBool_Type) {
+        if (value == Py_True || value == Py_False) {
+            return Py_NewRef(value);
+        } else if (PyUnicode_Check(value)) {
+            PyObject *lowered AUTO_DECREF = PyObject_CallMethod(value, "lower", NULL);
+            if (!lowered) {
+                PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
+                assert(python_func_name);
+                PyErr_Format(PyExc_ValueError, "Failed to create lowered version of '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(param_name), PyUnicode_AsUTF8(python_func_name));
+            }
+            if (lowered && PyUnicode_CompareWithASCIIString(lowered, "true") == 0) {
+                return Py_NewRef(Py_True);
+            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "false") == 0) {
+                return Py_NewRef(Py_False);
+            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "1") == 0) {
+                return Py_NewRef(Py_True);
+            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "0") == 0) {
+                return Py_NewRef(Py_False);
+            } else {
+                PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
+                assert(python_func_name);
+                PyErr_Format(PyExc_ValueError, "Invalid value '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(param_name), PyUnicode_AsUTF8(python_func_name));
+                return NULL;
+            }
+        }
+    }
+
+    return Py_NewRef(value);  /* Unsupported type-hint, original value will have to do. */
+}
+
+#if 0
+static /*PyDictObject*/PyObject * get_parameter_types(PyObject *py_func) {
+    PyObject *func_code AUTO_DECREF = PyObject_GetAttrString(py_func, "__code__");
+    PyObject *co_varnames AUTO_DECREF = PyObject_GetAttrString(func_code, "co_varnames");
+    PyObject *annotations AUTO_DECREF = PyObject_GetAttrString(py_func, "__annotations__");
+
+    PyObject *param_type_dict = PyDict_New();
+}
+#endif
+
 /**
  * @brief Parse positional and named slash arguments, supporting short options if enabled.
  *
@@ -42,15 +123,20 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
     PyObject *py_func = self->py_slash_func;
     const bool short_opts = self->short_opts;
 
-    // Build short option map and boolean map if needed
-    char param_short_map[256] = {0};
-    PyObject *param_name_map[256] = {0};
-    char param_short_is_bool[256] = {0};
-    if (short_opts) {
-        PyObject *func_code AUTO_DECREF = PyObject_GetAttrString(py_func, "__code__");
-        PyObject *co_varnames AUTO_DECREF = PyObject_GetAttrString(func_code, "co_varnames");
+    PyObject *func_code AUTO_DECREF = PyObject_GetAttrString(py_func, "__code__");
+    PyObject *co_varnames AUTO_DECREF = PyObject_GetAttrString(func_code, "co_varnames");
+    PyObject *annotations AUTO_DECREF = PyObject_GetAttrString(py_func, "__annotations__");
+
+    /* First build map of function parameter types. Especially for boolean parameters for now. */
+    PyObject *param_name_map[256] = {NULL};
+    PyTypeObject *param_type_map[256] = {NULL};
+    PyObject *param_type_dict AUTO_DECREF = PyDict_New();
+    if (param_type_dict == NULL) {
+        return -1;
+    }
+    
+    {   /* Build dict of type-cast types. Prefer annotations, but fall back to type of defaults. */
         PyObject *co_argcount_obj AUTO_DECREF = PyObject_GetAttrString(func_code, "co_argcount");
-        PyObject *annotations AUTO_DECREF = PyObject_GetAttrString(py_func, "__annotations__");
         if (!co_varnames || !PyTuple_Check(co_varnames) || !co_argcount_obj || !PyLong_Check(co_argcount_obj)) {
             PyErr_SetString(PyExc_TypeError, "Unable to inspect function parameters for short opts");
             return -1;
@@ -58,54 +144,43 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
         Py_ssize_t co_argcount = PyLong_AsSsize_t(co_argcount_obj);
         for (Py_ssize_t i = 0; i < co_argcount; ++i) {
             PyObject *name_obj = PyTuple_GetItem(co_varnames, i); // borrowed
-            if (!name_obj || !PyUnicode_Check(name_obj)) continue;
-            const char *name = PyUnicode_AsUTF8(name_obj);
-            if (!name || !name[0]) continue;
-            unsigned char first = (unsigned char)name[0];
-            param_short_map[first] = 1;
-            param_name_map[first] = name_obj;
-            // Generic type inference: if no type-hint, defer to default value's type
-            int param_type = 0; // 0=unknown, 1=bool, 2=int, 3=float, 4=str
-            PyObject *hint = NULL;
-            if (annotations && PyDict_Check(annotations)) {
-                hint = PyDict_GetItem(annotations, name_obj); // borrowed
-                if (hint && PyType_Check(hint)) {
-                    if (PyType_IsSubtype((PyTypeObject*)hint, &PyBool_Type)) {
-                        param_type = 1;
-                    } else if (PyType_IsSubtype((PyTypeObject*)hint, &PyLong_Type)) {
-                        param_type = 2;
-                    } else if (PyType_IsSubtype((PyTypeObject*)hint, &PyFloat_Type)) {
-                        param_type = 3;
-                    } else if (PyType_IsSubtype((PyTypeObject*)hint, &PyUnicode_Type)) {
-                        param_type = 4;
-                    }
-                }
+            if (!name_obj || !PyUnicode_Check(name_obj)) {
+                continue;
             }
-            if (param_type == 0) {
-                // If no type-hint, check if default value exists and use its type
-                PyObject *defaults AUTO_DECREF = PyObject_GetAttrString(py_func, "__defaults__");
-                if (defaults && PyTuple_Check(defaults)) {
-                    Py_ssize_t num_defaults = PyTuple_Size(defaults);
-                    Py_ssize_t default_idx = i - (co_argcount - num_defaults);
-                    if (default_idx >= 0 && default_idx < num_defaults) {
-                        PyObject *default_val = PyTuple_GetItem(defaults, default_idx); // borrowed
-                        if (default_val == Py_True || default_val == Py_False) {
-                            param_type = 1;
-                        } else if (PyLong_Check(default_val)) {
-                            param_type = 2;
-                        } else if (PyFloat_Check(default_val)) {
-                            param_type = 3;
-                        } else if (PyUnicode_Check(default_val)) {
-                            param_type = 4;
+
+            const char *name = PyUnicode_AsUTF8(name_obj);
+            if (!name || !name[0]) {
+                continue;
+            }
+            if (short_opts) {  /* Build short-opts mapping. */
+                unsigned char first = (unsigned char)name[0];
+                param_name_map[first] = name_obj;
+            }
+
+            /* Prefer Finding parameter type from type-hint. */
+            if (annotations && PyDict_Check(annotations)) {
+                PyObject *hint = typecast_future_typehint(PyDict_GetItem(annotations, name_obj));
+
+                if (hint && PyType_Check(hint)) {
+                    PyDict_SetItem(param_type_dict, name_obj, hint);
+                    param_type_map[name[0]] = (PyTypeObject*)hint;
+                } else {  /* No type-hint, defer to type of default. */
+                    PyObject *defaults AUTO_DECREF = PyObject_GetAttrString(py_func, "__defaults__");
+                    if (defaults && PyTuple_Check(defaults)) {
+                        Py_ssize_t num_defaults = PyTuple_Size(defaults);
+                        Py_ssize_t default_idx = i - (co_argcount - num_defaults);
+                        if (default_idx >= 0 && default_idx < num_defaults) {
+                            PyObject *default_val = PyTuple_GetItem(defaults, default_idx); // borrowed
+                            PyDict_SetItem(param_type_dict, name_obj, (PyObject*)default_val->ob_type);
+                            param_type_map[name[0]] = default_val->ob_type;
                         }
                     }
                 }
             }
-            param_short_is_bool[first] = (param_type == 1);
-            // Optionally, you could add param_short_type[first] = param_type for future use
         }
     }
 
+    /* Now actually parse the values. */
     PyObject* args_tuple AUTO_DECREF = PyTuple_New(slash->argc < 0 ? 0 : slash->argc);
     PyObject* kwargs_dict AUTO_DECREF = PyDict_New();
     if (args_tuple == NULL || kwargs_dict == NULL) {
@@ -118,62 +193,48 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
         if (short_opts && strncmp(arg, "-", 1) == 0 && strncmp(arg, "--", 2) != 0 && strlen(arg) >= 2) {
             // Single dash, short option
             unsigned char first = (unsigned char)arg[1];
-            if (param_short_map[first] && param_name_map[first]) {
-                // For boolean short opts, treat as flag only (no value allowed)
-                if (param_short_is_bool[first]) {
-                    printf("Processing short option: %s\n", arg);
-                    const char *key_str = PyUnicode_AsUTF8(param_name_map[first]);
-                    if (!key_str) {
-                        PyErr_SetString(PyExc_RuntimeError, "Failed to extract key string for short option");
+            if (param_name_map[first]) {
+
+                const char *eq = strchr(arg, '=');
+                PyObject *py_value AUTO_DECREF = NULL;
+                PyTypeObject *param_type = param_type_map[first];
+                if (eq) {
+                    /* Value specified with equal sign */
+                    PyObject * _py_str_arg AUTO_DECREF = PyUnicode_FromString(eq + 1);
+                    assert(param_name_map[first]);
+                    py_value = typecast_to_hinted_type((PyObject*)param_type, _py_str_arg, py_func, param_name_map[first]);
+                    if (!py_value) {
                         return -1;
                     }
-                    PyObject *py_key AUTO_DECREF = PyUnicode_FromString(key_str);
-                    PyObject *py_value = Py_True;
-                    if (!py_key || !py_value) {
-                        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for short option key or value");
-                        return -1;
-                    }
-                    if (PyDict_SetItem(kwargs_dict, py_key, py_value) != 0) {
-                        PyErr_SetString(PyExc_RuntimeError, "Failed to add short option to kwargs");
-                        return -1;
-                    }
-                    // Do NOT consume the next argument for boolean short opts
-                    continue;
-                } else {
-                    // Non-bool short opts: allow value
-                    const char *eq = strchr(arg, '=');
-                    const char *value = NULL;
-                    if (eq) {
-                        value = eq + 1;
-                    } else if (i + 1 < slash->argc) {
-                        value = slash->argv[++i];
-                    } else {
-                        value = "1"; // treat as flag if no value
-                    }
-                    const char *key_str = PyUnicode_AsUTF8(param_name_map[first]);
-                    if (!key_str) {
-                        PyErr_SetString(PyExc_RuntimeError, "Failed to extract key string for short option");
-                        return -1;
-                    }
-                    PyObject *py_key AUTO_DECREF = PyUnicode_FromString(key_str);
-                    PyObject *py_value AUTO_DECREF = PyUnicode_FromString(value);
-                    if (!py_key || !py_value) {
-                        PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for short option key or value");
-                        return -1;
-                    }
-                    if (PyDict_SetItem(kwargs_dict, py_key, py_value) != 0) {
-                        PyErr_SetString(PyExc_RuntimeError, "Failed to add short option to kwargs");
-                        return -1;
-                    }
-                    continue;
+                } else if (param_type && PyType_IsSubtype(param_type, &PyBool_Type)) {
+                    /* Disallow boolean short-opt values to be space separated,
+                        to prevent ambiguity with flags. */
+                    py_value = Py_NewRef(Py_True);
+                } else if (i + 1 < slash->argc) {
+                    /* Non-bool short opts: allow value */
+                    py_value = PyUnicode_FromString(slash->argv[++i]);
                 }
+
+                assert(py_value);
+                assert(param_name_map[first]);
+
+                if (PyDict_SetItem(kwargs_dict, param_name_map[first], py_value) != 0) {
+                    PyErr_SetString(PyExc_RuntimeError, "Failed to add short option to kwargs");
+                    return -1;
+                }
+    
+                continue;
             }
         }
         if (strncmp(arg, "--", 2) != 0) {
             /* Token is not a keyword argument, simply add it as a positional argument to *args_out */
-            PyObject* py_arg = PyUnicode_FromString(arg);
+            PyObject *param_name = PyTuple_GetItem(co_varnames, parsed_positional_args); // borrowed
+
+            // TODO Kevin: Defer to default type
+            PyObject *hint = PyDict_GetItem(param_type_dict, param_name); // borrowed
+            PyObject *_py_str_arg AUTO_DECREF = PyUnicode_FromString(arg);
+            PyObject* py_arg = typecast_to_hinted_type(hint, _py_str_arg, py_func, param_name);
             if (py_arg == NULL) {
-                PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for positional argument");
                 return -1;
             }
             assert(parsed_positional_args < slash->argc);
@@ -190,10 +251,18 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
         *equal_sign = '\0';  /* Null-terminate the key */
         const char* key = arg + 2;  /* Skip "--" */
         const char* value = equal_sign + 1;
-        PyObject* py_key AUTO_DECREF = PyUnicode_FromString(key);
-        PyObject* py_value AUTO_DECREF = PyUnicode_FromString(value);
-        if (py_key == NULL || py_value == NULL) {
-            PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for key or value");
+
+         /* If `hint_type` is NULL, invalid kwarg or **kwarg. Let Python deal with it when we call the function. */
+        PyObject * hint_type = PyDict_GetItemString(param_type_dict, key);
+        PyObject * param_name = param_name_map[key[0]];
+        if (hint_type) {
+            assert(param_name);
+        }
+        PyObject *_py_str_arg AUTO_DECREF = PyUnicode_FromString(value);
+
+        /* If `hint_type` is NULL (as with either an invalid kwarg or **kwarg), we simply add a string. */
+        PyObject* py_value AUTO_DECREF = hint_type ? typecast_to_hinted_type(hint_type, _py_str_arg, py_func, param_name) : Py_NewRef(_py_str_arg);
+        if (py_value == NULL) {
             return -1;
         }
 
@@ -202,7 +271,7 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
             mycommand --key=value --key=value --key=value2 */
 
         /* Add the key-value pair to the kwargs_out dictionary */
-        if (PyDict_SetItem(kwargs_dict, py_key, py_value) != 0) {
+        if (PyDict_SetItemString(kwargs_dict, key, py_value) != 0) {
             PyErr_SetString(PyExc_RuntimeError, "Failed to add key-value pair to kwargs dictionary");
             return -1;
         }
@@ -508,55 +577,6 @@ typedef enum {
 } typecast_result_t;
 
 /**
- * @brief Typecast a value to the hinted type if possible.
- * 
- * @param hint The type hint to cast to.
- * @param value The value to be typecasted.
- * @param python_func The Python function for error reporting.
- * @param param_name The name of the parameter being typecasted, used for error messages.
- * @return PyObject* New reference to the typecasted value, or NULL on error.
- */
-static PyObject * typecast_to_hinted_type(PyObject *hint, PyObject *value, PyObject *python_func, PyObject *param_name) {
-    if (!hint || !PyType_Check(hint)) {
-        return Py_NewRef(value);  // No type hint, return original value
-    }
-
-    // Handle type casting based on the type hint
-    if (hint == (PyObject*)&PyLong_Type && PyUnicode_Check(value)) {
-        return PyLong_FromUnicodeObject(value, 10);
-    } else if (hint == (PyObject*)&PyFloat_Type && PyUnicode_Check(value)) {
-        return PyFloat_FromString(value);
-    } else if (hint == (PyObject*)&PyBool_Type) {
-        if (value == Py_True || value == Py_False) {
-            return Py_NewRef(value);
-        } else if (PyUnicode_Check(value)) {
-            PyObject *lowered AUTO_DECREF = PyObject_CallMethod(value, "lower", NULL);
-            if (!lowered) {
-                PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
-                assert(python_func_name);
-                PyErr_Format(PyExc_ValueError, "Failed to create lowered version of '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(param_name), PyUnicode_AsUTF8(python_func_name));
-            }
-            if (lowered && PyUnicode_CompareWithASCIIString(lowered, "true") == 0) {
-                return Py_NewRef(Py_True);
-            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "false") == 0) {
-                return Py_NewRef(Py_False);
-            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "1") == 0) {
-                return Py_NewRef(Py_True);
-            } else if (lowered && PyUnicode_CompareWithASCIIString(lowered, "0") == 0) {
-                return Py_NewRef(Py_False);
-            } else {
-                PyObject * python_func_name AUTO_DECREF = PyObject_GetAttrString(python_func, "__qualname__");
-                assert(python_func_name);
-                PyErr_Format(PyExc_ValueError, "Invalid value '%s' for boolean argument '%s' for function '%s()'. Use either \"True\"/\"False\"", PyUnicode_AsUTF8(lowered), PyUnicode_AsUTF8(param_name), PyUnicode_AsUTF8(python_func_name));
-                return NULL;
-            }
-        }
-    }
-
-    return Py_NewRef(value);  /* Unsupported type-hint, original value will have to do. */
-}
-
-/**
  * @brief Inspect type-hints of the provided PyObject *func, and convert the arguments in py_args and py_kwargs (in-place) to the their corresponding type-hinted type.
  * 
  * Source: https://chatgpt.com
@@ -599,7 +619,7 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
             PyObject *param_name = PyTuple_GetItem(varnames, i);  // Borrowed reference
             assert(param_name && PyUnicode_Check(param_name));
 
-            PyObject *hint = PyDict_GetItem(annotations, param_name);  // Borrowed reference
+            PyObject *hint = typecast_future_typehint(PyDict_GetItem(annotations, param_name));  // Borrowed reference
             PyObject *new_arg = typecast_to_hinted_type(hint, arg, python_func, param_name);  // No Py_DecRef(), as PyTuple_SetItem() will steal the reference.
             
             if (!new_arg) {
@@ -619,7 +639,7 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
         Py_ssize_t pos = 0;
 
         while (PyDict_Next(py_kwargs, &pos, &key, &value)) {
-            PyObject *hint = PyDict_GetItem(annotations, key);  // Borrowed reference
+            PyObject *hint = typecast_future_typehint(PyDict_GetItem(annotations, key));  // Borrowed reference
             assert(!PyErr_Occurred());
 
             if (!hint) {
@@ -697,6 +717,8 @@ int SlashCommand_func(struct slash *slash, void *context) {
     /* Create the arguments. */
     PyObject *py_args AUTO_DECREF = NULL;
     PyObject *py_kwargs AUTO_DECREF = NULL;
+    /* TODO Kevin: Stop doing type-conversions in `pycsh_parse_slash_args()`.
+        It's a bit tricky since booleans require special attention. */
     if (pycsh_parse_slash_args(self, slash, &py_args, &py_kwargs) != 0) {
         PyErr_Print();
         return SLASH_EINVAL;
