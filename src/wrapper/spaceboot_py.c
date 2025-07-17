@@ -19,6 +19,7 @@
 #include <dirent.h>
 #include <string.h>
 #include <param/param.h>
+#include <pycsh/utils.h>
 #include <param/param_list.h>
 #include <param/param_client.h>
 
@@ -29,6 +30,10 @@
 
 #include <csp/csp.h>
 #include <csp/csp_cmp.h>
+#include <csp/csp_crc32.h>
+
+#include <apm/csh_api.h>
+#include <slash/dflopt.h>
 
 /* Custom exceptions */
 PyObject * PyExc_ProgramDiffError;
@@ -249,30 +254,49 @@ static int upload_and_verify(int node, int address, char * data, int len) {
 	return 0;
 }
 
+static void _auto_reset_rdp(void ** stuff) {
+	rdp_opt_reset();
+}
+
+extern void rdp_opt_set();
+extern void rdp_opt_reset();
+
+extern unsigned int rdp_tmp_window;
+extern unsigned int rdp_tmp_conn_timeout;
+extern unsigned int rdp_tmp_packet_timeout;
+extern unsigned int rdp_tmp_delayed_acks;
+extern unsigned int rdp_tmp_ack_timeout;
+extern unsigned int rdp_tmp_ack_count;
+
 PyObject * pycsh_csh_program(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	CSP_INIT_CHECK()
 
     unsigned int slot;
-	unsigned int node = pycsh_dfl_node;
 	char * filename = NULL;
+	unsigned int node = pycsh_dfl_node;
 
-	/* RDPOPT */
-	unsigned int window = 3;
-	unsigned int conn_timeout = 10000;
-	unsigned int packet_timeout = 5000;
-	unsigned int ack_timeout = 2000;
-	unsigned int ack_count = 2;
+	int do_crc32 = false;
 
-    static char *kwlist[] = {"slot", "filename", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", NULL};
+	/* RDPOPT - Keyword-only */
+	rdp_tmp_window = rdp_dfl_window;
+	rdp_tmp_conn_timeout = rdp_dfl_conn_timeout;
+	rdp_tmp_packet_timeout = rdp_dfl_packet_timeout;
+	rdp_tmp_delayed_acks = rdp_dfl_delayed_acks;
+	rdp_tmp_ack_timeout = rdp_dfl_ack_timeout;
+	rdp_tmp_ack_count = rdp_dfl_ack_count;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|IIIIII:program", kwlist, &slot, &filename, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count))
+	#define RDP_KWARGS "window", "conn_timeout", "packet_timeout", "delayed_acks", "ack_timeout", "ack_count"
+	#define RDP_OPTS &rdp_tmp_window, &rdp_tmp_conn_timeout, &rdp_tmp_packet_timeout, &rdp_tmp_delayed_acks, &rdp_tmp_ack_timeout, &rdp_tmp_ack_count
+
+    static char *kwlist[] = {"slot", "filename", "node", "do_crc32", RDP_KWARGS, NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|Ip$IIIIII:program", kwlist, &slot, &filename, &node, &do_crc32, RDP_OPTS))
 		return NULL;  // TypeError is thrown
 
-	printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
-	csp_rdp_set_opt(window, conn_timeout, packet_timeout, 1, ack_timeout, ack_count);
-
-	printf("node 1 %d\n", pycsh_dfl_node);
+	/* Temporarily set RDP options */
+	rdp_opt_set();
+	void * rdp_cleanup __attribute__((cleanup(_auto_reset_rdp))) = NULL;
 
 	char vmem_name[5];
 	snprintf(vmem_name, 5, "fl%u", slot);
@@ -297,13 +321,6 @@ PyObject * pycsh_csh_program(PyObject * self, PyObject * args, PyObject * kwds) 
 
 	char * path = bin_info.entries[0];
 
-	char * data;
-	int len;
-	if (image_get(path, &data, &len) < 0) {
-        PyErr_SetString(PyExc_IOError, "Failed to open file");
-		return NULL;
-	}
-
     printf("\033[31m\n");
     printf("ABOUT TO PROGRAM: %s\n", path);
     printf("\033[0m\n");
@@ -313,10 +330,47 @@ PyObject * pycsh_csh_program(PyObject * self, PyObject * args, PyObject * kwds) 
 	}
     printf("\n");
 
-    if (upload_and_verify(node, vmem.vaddr, data, len) != 0) {
-        PyErr_SetString(PyExc_ProgramDiffError, "Diff during download (upload/download mismatch)");
-        return NULL;
-    }
+	char * data CLEANUP_STR = NULL;
+	int len;
+	if (image_get(path, &data, &len) < 0) {
+        PyErr_SetString(PyExc_IOError, "Failed to open file");
+		return NULL;
+	}
+
+	if (do_crc32) {
+		uint32_t crc;
+		crc = csp_crc32_memory((const uint8_t *)data, len);
+		printf("  File CRC32: 0x%08"PRIX32"\n", crc);
+		printf("  Upload %u bytes to node %u addr 0x%"PRIX32"\n", len, node, vmem.vaddr);
+		vmem_upload(node, 10000, vmem.vaddr, data, len, 1);
+		uint32_t crc_node;
+		int res = vmem_client_calc_crc32(node, 10000, vmem.vaddr, len, &crc_node, 1);
+		if (res < 0) {
+			printf("\033[31m\n");
+			printf("  Communication failure: %"PRId32"\n", res);
+			printf("\033[0m\n");
+			PyErr_Format(PyExc_ConnectionError, "No response from node %d", node);
+			return NULL;
+		}
+
+		if (crc_node != crc) {
+			printf("\033[31m\n");
+			printf("  Failure: %"PRIX32" != %"PRIX32"\n", crc, crc_node);
+			printf("\033[0m\n");
+			PyErr_Format(PyExc_ProgramDiffError, "CRC32 mismatch: %"PRIX32" != %"PRIX32"", crc, crc_node);
+			return NULL;
+		}
+
+		printf("\033[32m\n");
+		printf("  Success\n");
+		printf("\033[0m\n");
+		Py_RETURN_NONE;
+	}
+
+	if (upload_and_verify(node, vmem.vaddr, data, len) != 0) {
+		PyErr_SetString(PyExc_ProgramDiffError, "Diff during download (upload/download mismatch)");
+		return NULL;
+	}
 
 	Py_RETURN_NONE;
 }
@@ -370,7 +424,7 @@ PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
 	assert(filename != NULL);
     strncpy(bin_info.entries[0], filename, BIN_PATH_MAX_SIZE-1);
     bin_info.count = 0;
-	
+
 	char * path = bin_info.entries[0];
 
     printf("\033[31m\n");
@@ -388,7 +442,7 @@ PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
 		PyErr_SetString(PyExc_IOError, "Failed to open file");
 		return NULL;
 	}
-	
+
 	int result = upload_and_verify(node, vmem.vaddr, data, len);
 	if (result != 0) {
         PyErr_SetString(PyExc_ProgramDiffError, "Diff during download (upload/download mismatch)");
@@ -399,6 +453,6 @@ PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
         PyErr_SetString(PyExc_ConnectionError, "Cannot ping system");
         return NULL;
     }
-	
+
     Py_RETURN_NONE;
 }
