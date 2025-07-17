@@ -254,12 +254,12 @@ static int upload_and_verify(int node, int address, char * data, int len) {
 	return 0;
 }
 
+extern void rdp_opt_set();
+extern void rdp_opt_reset();
+
 static void _auto_reset_rdp(void ** stuff) {
 	rdp_opt_reset();
 }
-
-extern void rdp_opt_set();
-extern void rdp_opt_reset();
 
 extern unsigned int rdp_tmp_window;
 extern unsigned int rdp_tmp_conn_timeout;
