@@ -9,6 +9,9 @@
 #include <pycsh/utils.h>
 
 
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
+
 /* The main_thread_state is mostly needed by apm.c. But we define it here,
     so it's also visible when not compiling as APM. */
 __attribute__((weak)) 
@@ -227,17 +230,31 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
             }
         }
         if (strncmp(arg, "--", 2) != 0) {
+
+            PyObject *_py_str_arg AUTO_DECREF = PyUnicode_FromString(arg);
+
+            assert(PyTuple_Check(co_varnames));
+            assert(parsed_positional_args < slash->argc);
+            /* There can be no type-hint if we've already parsed more arguments than the function has parameters.
+                We're not gonna do any type-checks for *args (at least for now), so we let Jesus take the wheel instead. */
+            if (parsed_positional_args >= PyTuple_GET_SIZE(co_varnames)) {
+                /* We're passing a string here, which may not be what the user would want.
+                    But we're most likely supplying an excess argument here, so calling the function will error.
+                    We just want to let Python handle the error message. */
+                PyTuple_SET_ITEM(args_tuple, parsed_positional_args++, _py_str_arg);
+                continue;  /* Skip processing for keyword arguments */
+            }
+
             /* Token is not a keyword argument, simply add it as a positional argument to *args_out */
             PyObject *param_name = PyTuple_GetItem(co_varnames, parsed_positional_args); // borrowed
 
             // TODO Kevin: Defer to default type
             PyObject *hint = PyDict_GetItem(param_type_dict, param_name); // borrowed
-            PyObject *_py_str_arg AUTO_DECREF = PyUnicode_FromString(arg);
             PyObject* py_arg = typecast_to_hinted_type(hint, _py_str_arg, py_func, param_name);
             if (py_arg == NULL) {
                 return -1;
             }
-            assert(parsed_positional_args < slash->argc);
+
             PyTuple_SET_ITEM(args_tuple, parsed_positional_args++, py_arg);
             continue;  /* Skip processing for keyword arguments */
         }
@@ -584,7 +601,7 @@ typedef enum {
  * @return int 0 for success
  */
 static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObject *py_args, PyObject *py_kwargs) {
-    
+
     PyObject *annotations AUTO_DECREF = PyObject_GetAttrString(python_func, "__annotations__");
     if (!annotations || !PyDict_Check(annotations)) {
         // Handle error, no annotations found
@@ -609,21 +626,21 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
         }
 
         Py_ssize_t num_args = PyTuple_Size(py_args);
-        for (Py_ssize_t i = 0; i < num_args; i++) {
+        for (Py_ssize_t i = 0; i < min(num_args, PyTuple_GET_SIZE(varnames)); i++) {
             PyObject *arg = PyTuple_GetItem(py_args, i);  // Borrowed reference
-            
+
             // Get the corresponding parameter name for this positional argument
             PyObject *param_name = PyTuple_GetItem(varnames, i);  // Borrowed reference
             assert(param_name && PyUnicode_Check(param_name));
 
             PyObject *hint = typecast_future_typehint(PyDict_GetItem(annotations, param_name));  // Borrowed reference
             PyObject *new_arg = typecast_to_hinted_type(hint, arg, python_func, param_name);  // No Py_DecRef(), as PyTuple_SetItem() will steal the reference.
-            
+
             if (!new_arg) {
                 assert(PyErr_Occurred());
                 return TYPECAST_INVALID_ARG;
             }
-            
+
             if (new_arg) {
                 // Replace the item in the tuple, stealing the reference of new_arg
                 PyTuple_SetItem(py_args, i, new_arg);
