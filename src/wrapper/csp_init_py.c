@@ -34,6 +34,8 @@
 
 #include <pycsh/utils.h>
 
+#include "../csp_classes/iface.h"
+
 
 static bool csp_router_started = false;
 __attribute__((weak)) bool csp_router_is_running() {
@@ -471,13 +473,26 @@ PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject
 
     unsigned int addr;
     unsigned int mask;
-    char * interface_name = NULL;  // TODO Kevin: Create and accept Interface wrapper class here
+    PyObject * interface_arg = NULL;
     unsigned int via = CSP_NO_VIA_ADDRESS;
 
     static char *kwlist[] = {"addr", "mask", "interface", "via", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIs|I:csp_add_route", kwlist, &addr, &mask, &interface_name, &via)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIO|I:csp_add_route", kwlist, &addr, &mask, &interface_arg, &via)) {
         return NULL;  // TypeError is thrown
+    }
+
+    // Suppress the incompatible pointer type warning when AUTO_DECREF is used on subclasses of PyObject*
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+    InterfaceObject * interface AUTO_DECREF = Interface_from_py_identifier(interface);
+	// Re-enable the warning
+    #pragma GCC diagnostic pop
+
+    if (interface == NULL) {
+        /* NOTE: csp_rtable_set() already checks for valid ifc,
+            but an explicit exception is probably more user-friendly. */
+        return NULL;
     }
 
     /* TODO Kevin: Can't quite decide between exceptions and error-as-value here.
@@ -513,13 +528,8 @@ PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject
         }
     }
 
-    csp_iface_t * ifc = csp_iflist_get_by_name(interface_name);
-    if (NULL == ifc) {
-        /* NOTE: csp_rtable_set() already checks for valid ifc,
-            but an explicit exception is probably more user-friendly. */
-        PyErr_Format(PyExc_ValueError, "Failed to find interface by name '%s'", interface_name);
-        return NULL;
-    }
+    csp_iface_t * ifc = interface->iface;
+    assert(ifc);
 
     int res = csp_rtable_set(addr, mask, ifc, via);
     if (CSP_ERR_NONE != res) {

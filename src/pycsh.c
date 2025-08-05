@@ -49,6 +49,7 @@
 
 #include "csp_classes/ident.h"
 #include "csp_classes/ifstat.h"
+#include "csp_classes/iface.h"
 #include "csp_classes/vmem.h"
 
 #include "slash_command/slash_command.h"
@@ -232,6 +233,7 @@ static PyMethodDef methods[] = {
 	// {"list_load", 	pycsh_param_list_load, 		  	METH_VARARGS, 				  "Load a list of parameters from a file."},
 
 	/* Converted CSH commands from csh/src/slash_csp.c */
+	{"info", 		(PyCFunction)pycsh_csp_info, 	METH_NOARGS, "Return local CSP interfaces and Routes"},
 	{"ping", 		(PyCFunction)pycsh_slash_ping, 	METH_VARARGS | METH_KEYWORDS, "Ping the specified node."},
 	{"ident", 		(PyCFunction)pycsh_slash_ident,	METH_VARARGS | METH_KEYWORDS, "Print the identity of the specified node."},
 	{"uptime", 		(PyCFunction)pycsh_csp_cmp_uptime,	METH_VARARGS | METH_KEYWORDS, "Return uptime information of the specified node."},
@@ -370,6 +372,10 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
 	}
 
 	if (PyModule_AddType(pycsh, &IfstatType) < 0) {
+        return NULL;
+	}
+
+	if (PyModule_AddType(pycsh, &InterfaceType) < 0) {
         return NULL;
 	}
 

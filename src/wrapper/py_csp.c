@@ -11,10 +11,51 @@
 #include <csp/csp_cmp.h>
 
 #include "../pycsh.h"
+#include "../csp_classes/iface.h"
 #include "../csp_classes/ifstat.h"
 #include <apm/csh_api.h>
 
 #include "py_csp.h"
+#include <pycsh/utils.h>
+
+
+PyObject * pycsh_csp_info(PyObject * self, PyObject * args) {
+
+    csp_iface_t * iface = csp_iflist_get();
+    //csp_iface_t * iface = csp_iflist_get_by_index(0);
+    //csp_iface_t * iface = csp_iflist_get_by_isdfl(NULL);
+    if (iface == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Error iterating CSP iflist");
+		return NULL;
+	}
+
+    PyObject * iface_tuple AUTO_DECREF = PyTuple_New(0);
+    if (!iface_tuple) {
+        return PyErr_NoMemory();
+    }
+
+    csp_iface_t * csp_iflist_iterate(csp_iface_t * ifc);
+
+	while ((iface = csp_iflist_iterate(iface)) != NULL) {
+
+        const Py_ssize_t insert_index = PyTuple_GET_SIZE(iface_tuple);
+        /* Resize tuple to fit reply, this could probably be done more efficiently. */
+        if (_PyTuple_Resize(&iface_tuple, insert_index+1) < 0) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to resize tuple for ident replies");
+            return NULL;
+        }
+
+        InterfaceObject * py_ifc = Interface_from_csp_iface_t(&InterfaceType, iface);
+        if (py_ifc == NULL) {
+            return NULL;
+        }
+
+        PyTuple_SET_ITEM(iface_tuple, insert_index, (PyObject*)py_ifc);
+	}
+
+    /* TODO Kevin: Also return routes somehow. */
+    return Py_NewRef(iface_tuple);
+}
 
 
 PyObject * pycsh_slash_ping(PyObject * self, PyObject * args, PyObject * kwds) {

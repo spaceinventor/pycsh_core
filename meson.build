@@ -22,6 +22,7 @@ pycsh_sources = [
 	'src/parameter/parameterlist.c',
 	'src/csp_classes/ident.c',
 	'src/csp_classes/vmem.c',
+	'src/csp_classes/iface.c',
 	'src/csp_classes/ifstat.c',
 	#'src/csp_classes/node.c',  # Coming soon...
 
