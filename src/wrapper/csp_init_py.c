@@ -236,7 +236,7 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
-    Py_RETURN_NONE;
+    return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
 PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject * kwds) {
@@ -277,7 +277,7 @@ PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject *
     iface->addr = addr;
     iface->netmask = mask;
 
-    Py_RETURN_NONE;
+    return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
 #if (CSP_HAVE_LIBSOCKETCAN)
@@ -315,7 +315,7 @@ PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
-    Py_RETURN_NONE;
+    return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
 #endif
@@ -385,7 +385,7 @@ PyObject * pycsh_csh_csp_ifadd_eth(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
-    Py_RETURN_NONE;
+    return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
 PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * kwds) {
@@ -432,7 +432,7 @@ PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
-    Py_RETURN_NONE;
+    return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
 PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * kwds) {
@@ -466,7 +466,7 @@ PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
-    Py_RETURN_NONE;
+    return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
 PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject * kwds) {
@@ -537,5 +537,6 @@ PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject
         return NULL;
     }
 
+    /* TODO Kevin: Add and return Route class */
     Py_RETURN_NONE;
 }
