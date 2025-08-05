@@ -446,7 +446,15 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
 
         PyModule_AddObject_ErrCheck(pycsh, "CSP_NO_VIA_ADDRESS", PyLong_FromLong(CSP_NO_VIA_ADDRESS));
         
-		// TODO Kevin: We should probably add constants for SLASH_SUCCESS and such
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_EXIT", PyLong_FromLong(SLASH_EXIT));
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_SUCCESS", PyLong_FromLong(SLASH_SUCCESS));
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_EUSAGE", PyLong_FromLong(SLASH_EUSAGE));
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_EINVAL", PyLong_FromLong(SLASH_EINVAL));
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_ENOSPC", PyLong_FromLong(SLASH_ENOSPC));
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_EIO", PyLong_FromLong(SLASH_EIO));
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_ENOMEM", PyLong_FromLong(SLASH_ENOMEM));
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_ENOENT", PyLong_FromLong(SLASH_ENOENT));
+		PyModule_AddObject_ErrCheck(pycsh, "SLASH_EBREAK", PyLong_FromLong(SLASH_EBREAK));
 	}
 
     #undef PyModule_AddObject_ErrCheck

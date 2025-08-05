@@ -753,6 +753,13 @@ int SlashCommand_func(struct slash *slash, void *context) {
         return SLASH_EINVAL;
     }
 
+    if (PyLong_Check(value)) {
+        return PyLong_AS_LONG(value);
+    }
+
+    /* TODO Kevin: It could be argured that return-values of unknown types should raise exceptions.
+        But on the other hand we can just ignore them. */
+
 #if 0  // It's probably best to just let any potential error propagate normally
     if (PyErr_Occurred()) {
         /* It may not be clear to the user, that the exception came from the callback,
