@@ -49,6 +49,8 @@
 
 #include "csp_classes/ident.h"
 #include "csp_classes/ifstat.h"
+#include "csp_classes/info.h"
+#include "csp_classes/route.h"
 #include "csp_classes/iface.h"
 #include "csp_classes/vmem.h"
 
@@ -376,6 +378,14 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
 	}
 
 	if (PyModule_AddType(pycsh, &InterfaceType) < 0) {
+        return NULL;
+	}
+
+	if (PyModule_AddType(pycsh, &RouteType) < 0) {
+        return NULL;
+	}
+
+	if (PyModule_AddType(pycsh, &InfoType) < 0) {
         return NULL;
 	}
 

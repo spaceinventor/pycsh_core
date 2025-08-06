@@ -24,11 +24,52 @@ static PyObject * Interface_str(InterfaceObject *self) {
 				  i->autherr, i->frame, i->txbytes, tx, tx_postfix, i->rxbytes, rx, rx_postfix);
 }
 
+/* New reference tuple[Interface, ...] */
+PyObject * csp_interfaces_to_tuple(void) {
+
+    csp_iface_t * iface = csp_iflist_get();
+
+    if (iface == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Error iterating CSP iflist");
+		return NULL;
+	}
+
+    PyObject * iface_tuple AUTO_DECREF = PyTuple_New(0);
+    if (!iface_tuple) {
+        return PyErr_NoMemory();
+    }
+
+    csp_iface_t * csp_iflist_iterate(csp_iface_t * ifc);
+
+	while ((iface = csp_iflist_iterate(iface)) != NULL) {
+
+        const Py_ssize_t insert_index = PyTuple_GET_SIZE(iface_tuple);
+        /* Resize tuple to fit reply, this could probably be done more efficiently. */
+        if (_PyTuple_Resize(&iface_tuple, insert_index+1) < 0) {
+            PyErr_SetString(PyExc_RuntimeError, "Failed to resize tuple for ident replies");
+            return NULL;
+        }
+
+        InterfaceObject * py_ifc = Interface_from_csp_iface_t(&InterfaceType, iface);
+        if (py_ifc == NULL) {
+            return NULL;
+        }
+
+        PyTuple_SET_ITEM(iface_tuple, insert_index, (PyObject*)py_ifc);
+	}
+
+    return Py_NewRef(iface_tuple);
+}
+
 InterfaceObject * Interface_from_csp_iface_t(PyTypeObject *type, csp_iface_t * ifc) {
 
 	/* Shouldn't return NULL without setting an exception,
 		and incorrect C argument doesn't really justify an exception, hence `assert()` */
 	assert(ifc);
+
+    if (type == NULL) {
+        type = &InterfaceType;
+    }
 
 	InterfaceObject *self = (InterfaceObject *)type->tp_alloc(type, 0);
 	if (self == NULL) {
@@ -74,7 +115,7 @@ InterfaceObject * Interface_from_py_identifier(PyObject * identifier/*: int|str|
 	}
 
 	if (PyObject_IsInstance(identifier, (PyObject*)&InterfaceType)) {
-		return (PyObject*)Py_NewRef(identifier);
+		return (InterfaceObject*)Py_NewRef(identifier);
 	}
 
 	PyErr_Format(PyExc_TypeError, "Unsupported Interface identifier type (%s), options are int|str|pycsh.Interface", identifier->ob_type->tp_name);
