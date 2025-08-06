@@ -485,7 +485,7 @@ PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject
     // Suppress the incompatible pointer type warning when AUTO_DECREF is used on subclasses of PyObject*
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
-    InterfaceObject * interface AUTO_DECREF = Interface_from_py_identifier(interface);
+    InterfaceObject * interface AUTO_DECREF = Interface_from_py_identifier(interface_arg);
 	// Re-enable the warning
     #pragma GCC diagnostic pop
 
