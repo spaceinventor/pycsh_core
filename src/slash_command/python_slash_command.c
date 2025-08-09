@@ -43,9 +43,17 @@ static PyObject *typecast_future_typehint(PyObject *hint) {
     // Get the function's global namespace
     PyObject *globals = PyEval_GetGlobals();
     if (!globals) {
-        globals = PyModule_GetDict(PyImport_AddModule("__main__"));
+        PyObject * __main__ = PyImport_AddModule("__main__");
+        if (PyErr_Occurred()) {
+            return NULL;
+        }
+        globals = PyModule_GetDict(__main__);
     }
     PyObject *resolved_hint = PyRun_String(PyUnicode_AsUTF8(hint), Py_eval_input, globals, globals);
+    if (PyErr_Occurred()) {
+        /* Can't resolve complex typehints, especially with `from __future__ import annotations` */
+        PyErr_Clear();
+    }
     if (resolved_hint && PyType_Check(resolved_hint)) {
         return resolved_hint;
     }
@@ -164,7 +172,11 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
             if (annotations && PyDict_Check(annotations)) {
                 PyObject *hint = typecast_future_typehint(PyDict_GetItem(annotations, name_obj));
 
-                if (hint && PyType_Check(hint)) {
+                if (!hint) {
+                    return -2;
+                }
+
+                if (PyType_Check(hint)) {
                     PyDict_SetItem(param_type_dict, name_obj, hint);
                     param_type_map[name[0]] = (PyTypeObject*)hint;
                 } else {  /* No type-hint, defer to type of default. */
@@ -634,11 +646,14 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
             assert(param_name && PyUnicode_Check(param_name));
 
             PyObject *hint = typecast_future_typehint(PyDict_GetItem(annotations, param_name));  // Borrowed reference
+            if (!hint) {
+                return TYPECAST_UNSPECIFIED_EXCEPTION;
+            }
             PyObject *new_arg = typecast_to_hinted_type(hint, arg, python_func, param_name);  // No Py_DecRef(), as PyTuple_SetItem() will steal the reference.
 
             if (!new_arg) {
                 assert(PyErr_Occurred());
-                return TYPECAST_INVALID_ARG;
+                return TYPECAST_UNSPECIFIED_EXCEPTION;
             }
 
             if (new_arg) {
@@ -654,10 +669,9 @@ static typecast_result_t SlashCommand_typecast_args(PyObject *python_func, PyObj
 
         while (PyDict_Next(py_kwargs, &pos, &key, &value)) {
             PyObject *hint = typecast_future_typehint(PyDict_GetItem(annotations, key));  // Borrowed reference
-            assert(!PyErr_Occurred());
-
-            if (!hint) {
-                continue;
+            if (PyErr_Occurred()) {
+                assert(!hint);
+                return TYPECAST_UNSPECIFIED_EXCEPTION;
             }
 
             assert(key && PyUnicode_Check(key));
