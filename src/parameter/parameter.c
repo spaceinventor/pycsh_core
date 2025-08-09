@@ -98,7 +98,7 @@ static PyObject * Parameter_get_id(ParameterObject *self, void *closure) {
 }
 
 static PyObject * Parameter_get_node(ParameterObject *self, void *closure) {
-	return Py_BuildValue("H", self->param->node);
+	return Py_BuildValue("H", *self->param->node);
 }
 
 static PyObject * Parameter_get_storage_type(ParameterObject *self, void *closure) {
@@ -264,7 +264,8 @@ static PyObject * Parameter_getmask(ParameterObject *self, void *closure) {
 }
 
 static PyObject * Parameter_gettimestamp(ParameterObject *self, void *closure) {
-	return Py_BuildValue("I", *(self->param->timestamp));
+	/* TODO Kevin: Convert to float with `->tv_nsec` as decimals */
+	return Py_BuildValue("I", self->param->timestamp->tv_sec);
 }
 
 static PyObject * Parameter_get_retries(ParameterObject *self, void *closure) {
