@@ -357,7 +357,7 @@ PythonParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, pa
         return (PythonParameterObject*)PyErr_NoMemory();
     }
 
-    PythonParameterObject * self = (PythonParameterObject *)_pycsh_Parameter_from_param(type, new_param, callback, host, timeout, retries, paramver);
+    PythonParameterObject * self = (PythonParameterObject *)pycsh_Parameter_from_param(type, new_param, callback, host, timeout, retries, paramver, PY_PARAM_FREE_LIST_DESTROY);
     if (self == NULL) {
         /* This is likely a memory allocation error, in which case we expect .tp_alloc() to have raised an exception. */
         return NULL;
@@ -379,7 +379,7 @@ PythonParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, pa
         }
     }
 
-    // ((ParameterObject *)self)->param->callback = Parameter_callback;  // NOTE: This assignment is performed in _pycsh_Parameter_from_param()
+    // ((ParameterObject *)self)->param->callback = Parameter_callback;  // NOTE: This assignment is performed in pycsh_Parameter_from_param()
     self->keep_alive = 1;
     Py_INCREF(self);  // Parameter list holds a reference to the ParameterObject
     /* NOTE: If .keep_alive defaults to False, then we should remove this Py_INCREF() */

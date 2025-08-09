@@ -127,7 +127,7 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
     param_t * param = param_list_create_remote(id, node, type, mask, length, name, unitstr, helpstr, -1);
     
 
-    PyObject * param_instance = _pycsh_Parameter_from_param(&ParameterType, param, NULL, INT_MIN, pycsh_dfl_timeout, 1, 2);
+    PyObject * param_instance = pycsh_Parameter_from_param(&ParameterType, param, NULL, INT_MIN, pycsh_dfl_timeout, 1, 2, PY_PARAM_FREE_LIST_DESTROY);
 
     if (param_instance == NULL) {
         PyErr_SetString(PyExc_ValueError, "Unable to create param");

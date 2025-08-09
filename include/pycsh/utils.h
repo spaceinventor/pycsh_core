@@ -79,10 +79,6 @@ param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node);
 PyObject * pycsh_util_get_type(PyObject * self, PyObject * args);
 
 
-/* Create a Python Parameter object from a param_t pointer directly. */
-PyObject * _pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const PyObject * callback, int host, int timeout, int retries, int paramver);
-
-
 /**
  * @brief Return a list of Parameter wrappers similar to the "list" slash command
  * 

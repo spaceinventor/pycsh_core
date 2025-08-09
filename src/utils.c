@@ -391,119 +391,6 @@ ParameterObject * Parameter_wraps_param(param_t *param) {
 	return python_param;
 }
 
-static PyTypeObject * get_arrayparameter_subclass(PyTypeObject *type) {
-
-	// Get the __subclasses__ method
-    PyObject *subclasses_method AUTO_DECREF = PyObject_GetAttrString((PyObject *)type, "__subclasses__");
-    if (subclasses_method == NULL) {
-        return NULL;
-    }
-
-	// NOTE: .__subclasses__() is not recursive, but this is currently not an issue with ParameterArray and PythonArrayParameter
-
-    // Call the __subclasses__ method
-    PyObject *subclasses_list AUTO_DECREF = PyObject_CallObject(subclasses_method, NULL);
-    if (subclasses_list == NULL) {
-        return NULL;
-    }
-
-    // Ensure the result is a list
-    if (!PyList_Check(subclasses_list)) {
-        PyErr_SetString(PyExc_TypeError, "__subclasses__ did not return a list");
-        return NULL;
-    }
-
-    // Iterate over the list of subclasses
-    Py_ssize_t num_subclasses = PyList_Size(subclasses_list);
-    for (Py_ssize_t i = 0; i < num_subclasses; i++) {
-        PyObject *subclass = PyList_GetItem(subclasses_list, i);  // Borrowed reference
-        if (subclass == NULL) {
-            return NULL;
-        }
-
-		int is_subclass = PyObject_IsSubclass(subclass, (PyObject*)&ParameterArrayType);
-        if (is_subclass < 0) {
-			return NULL;
-		}
-		
-		PyErr_Clear();
-		if (is_subclass) {
-			return (PyTypeObject*)subclass;
-		}
-    }
-
-	PyErr_Format(PyExc_TypeError, "Failed to find ArrayParameter variant of class %s", type->tp_name);
-	return NULL;
-}
-
-/* Create a Python Parameter object from a param_t pointer directly. */
-PyObject * _pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const PyObject * callback, int host, int timeout, int retries, int paramver) {
-	if (param == NULL) {
- 		return NULL;
-	}
-	// This parameter is already wrapped by a ParameterObject, which we may return instead.
-	ParameterObject * existing_parameter;
-	if ((existing_parameter = Parameter_wraps_param(param)) != NULL) {
-		/* TODO Kevin: How should we handle when: host, timeout, retries and paramver are different for the existing parameter? */
-		return (PyObject*)Py_NewRef(existing_parameter);
-	}
-
-	if (param->array_size <= 1 && type == &ParameterArrayType) {
-		PyErr_SetString(PyExc_TypeError, 
-			"Attempted to create a ParameterArray instance, for a non array parameter.");
-		return NULL;
-	} else if (param->array_size > 1) {  		   // If the parameter is an array.
-		type = get_arrayparameter_subclass(type);  // We create a ParameterArray instance instead.
-		if (type == NULL) {
-			return NULL;
-		}
-		// If you listen really carefully here, you can hear OOP idealists, screaming in agony.
-		// On a more serious note, I'm amazed that this even works at all.
-	}
-
-	ParameterObject *self = (ParameterObject *)type->tp_alloc(type, 0);
-
-	if (self == NULL)
-		return NULL;
-
-	{   /* Add ourselves to the callback/lookup dictionary */
-		PyObject *key AUTO_DECREF = PyLong_FromVoidPtr(param);
-		assert(key != NULL);
-		assert(!PyErr_Occurred());
-		assert(PyDict_GetItem((PyObject*)param_callback_dict, key) == NULL);
-		int set_res = PyDict_SetItem((PyObject*)param_callback_dict, key, (PyObject*)self);
-		assert(set_res == 0);  // Allows the param_t callback to find the corresponding ParameterObject.
-		assert(PyDict_GetItem((PyObject*)param_callback_dict, key) != NULL);
-		assert(!PyErr_Occurred());
-
-		assert(self);
-		assert(self->ob_base.ob_type);
-		/* The parameter linked list should maintain an eternal reference to Parameter() instances, and subclasses thereof (with the exception of PythonParameter() and its subclasses).
-			This check should ensure that: Parameter("name") is Parameter("name") == True.
-			This check doesn't apply to PythonParameter()'s, because its reference is maintained by .keep_alive */
-		int is_pythonparameter = PyObject_IsSubclass((PyObject*)(type), (PyObject*)&PythonParameterType);
-        if (is_pythonparameter < 0) {
-			assert(false);
-			return NULL;
-		}
-
-		if (is_pythonparameter) {
-			Py_DECREF(self);  // param_callback_dict should hold a weak reference to self
-		}
-	}
-
-	self->host = host;
-	self->param = param;
-	self->timeout = timeout;
-	self->retries = retries;
-	self->paramver = paramver;
-
-	self->type = (PyTypeObject *)pycsh_util_get_type((PyObject *)self, NULL);
-
-    return (PyObject *) self;
-}
-
-
 /**
  * @brief Return a list of Parameter wrappers similar to the "list" slash command
  * 
@@ -531,7 +418,7 @@ PyObject * pycsh_util_parameter_list(uint32_t mask, int node, const char * globs
 
 		/* CSH does not specify a paramver when listing parameters,
 			so we just use 2 as the default version for the created instances. */
-		PyObject * parameter AUTO_DECREF = _pycsh_Parameter_from_param(&ParameterType, param, NULL, INT_MIN, pycsh_dfl_timeout, 1, 2);
+		PyObject * parameter AUTO_DECREF = pycsh_Parameter_from_param(&ParameterType, param, NULL, INT_MIN, pycsh_dfl_timeout, 1, 2, PY_PARAM_FREE_NO);
 		if (parameter == NULL) {
 			Py_DECREF(list);
 			return NULL;
