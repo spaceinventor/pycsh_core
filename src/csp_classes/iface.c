@@ -132,11 +132,8 @@ PyObject * Interface_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
         return NULL;  // TypeError is thrown
     }
 
-	InterfaceObject *self = Interface_from_py_identifier(identifier);
-	if (self == NULL) {
-		/* This is likely a memory allocation error, in which case we expect .tp_alloc() to have raised an exception. */
-		return NULL;
-	}
+    /* If NULL is returned here, it is likely a memory allocation error, in which case we expect .tp_alloc() to have raised an exception. */
+	return (PyObject*)Interface_from_py_identifier(identifier);
 }
 
 static PyObject * Interface_get_addr(InterfaceObject *self, void *closure) {

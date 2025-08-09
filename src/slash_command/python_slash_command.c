@@ -178,7 +178,7 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
 
                 if (PyType_Check(hint)) {
                     PyDict_SetItem(param_type_dict, name_obj, hint);
-                    param_type_map[name[0]] = (PyTypeObject*)hint;
+                    param_type_map[(unsigned char)name[0]] = (PyTypeObject*)hint;
                 } else {  /* No type-hint, defer to type of default. */
                     PyObject *defaults AUTO_DECREF = PyObject_GetAttrString(py_func, "__defaults__");
                     if (defaults && PyTuple_Check(defaults)) {
@@ -187,7 +187,7 @@ int pycsh_parse_slash_args(PythonSlashCommandObject *self, const struct slash *s
                         if (default_idx >= 0 && default_idx < num_defaults) {
                             PyObject *default_val = PyTuple_GetItem(defaults, default_idx); // borrowed
                             PyDict_SetItem(param_type_dict, name_obj, (PyObject*)default_val->ob_type);
-                            param_type_map[name[0]] = default_val->ob_type;
+                            param_type_map[(unsigned char)name[0]] = default_val->ob_type;
                         }
                     }
                 }
@@ -472,7 +472,7 @@ static char *format_python_func_help(PyObject *func, int only_print, bool short_
 
     // Improved docstring formatting: avoid redundant newlines, trim leading/trailing whitespace
     if (doc && PyUnicode_Check(doc)) {
-        Py_ssize_t doc_len = PyUnicode_GET_LENGTH(doc);
+        //Py_ssize_t doc_len = PyUnicode_GET_LENGTH(doc);
         // Remove leading/trailing whitespace and newlines
         PyObject *doc_stripped AUTO_DECREF = PyObject_CallMethod(doc, "strip", NULL);
         if (doc_stripped && PyUnicode_GET_LENGTH(doc_stripped) > 0) {
@@ -915,6 +915,7 @@ static int PythonSlashCommand_set_keep_alive(PythonSlashCommandObject *self, PyO
     return 0;
 }
 
+#if 0
 static void PythonSlashCommand_on_remove_hook(struct slash_command *command) {
     
     assert(command != NULL);
@@ -928,6 +929,7 @@ static void PythonSlashCommand_on_remove_hook(struct slash_command *command) {
         PythonSlashCommand_set_keep_alive(py_slash_command, Py_False, NULL);
     }
 }
+#endif
 
 /* Internal API for creating a new PythonSlashCommandObject. */
 static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, char * name, const char * args, const PyObject * py_slash_func, bool short_opts) {
@@ -997,7 +999,8 @@ static PythonSlashCommandObject * SlashCommand_create_new(PyTypeObject *type, ch
     memcpy(&self->command_heap, &temp_command, sizeof(struct slash_command));
     self->slash_command_object.command = &self->command_heap;
 
-    struct slash_command * existing = slash_list_find_name(self->command_heap.name);
+    /* TODO Kevin: Perhaps store overridden command? */
+    //struct slash_command * existing = slash_list_find_name(self->command_heap.name);
 
     int res = slash_list_add(&self->command_heap);
     if (res < 0) {
