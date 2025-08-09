@@ -30,8 +30,8 @@ PyObject * csp_interfaces_to_tuple(void) {
     csp_iface_t * iface = csp_iflist_get();
 
     if (iface == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "Error iterating CSP iflist");
-		return NULL;
+        /* No interfaces added yet. */
+		return PyTuple_New(0);
 	}
 
     PyObject * iface_tuple AUTO_DECREF = PyTuple_New(0);

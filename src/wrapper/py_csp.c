@@ -131,6 +131,9 @@ PyObject * pycsh_csp_cmp_ifstat(PyObject * self, PyObject * args, PyObject * kwd
 }
 
 PyObject * pycsh_csp_cmp_uptime(PyObject * self, PyObject * args, PyObject * kwds) {
+
+    CSP_INIT_CHECK()
+
     unsigned int node = pycsh_dfl_node;
     unsigned int timeout = pycsh_dfl_timeout;
     static char *kwlist[] = {"node", "timeout", NULL};
@@ -149,6 +152,8 @@ PyObject * pycsh_csp_cmp_uptime(PyObject * self, PyObject * args, PyObject * kwd
 }
 
 PyObject * pycsh_slash_reboot(PyObject * self, PyObject * args) {
+
+    CSP_INIT_CHECK()
 
     unsigned int node = pycsh_dfl_node;
 

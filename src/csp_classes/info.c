@@ -45,12 +45,25 @@ static void Info_dealloc(InfoObject *self) {
 __attribute__((malloc(Info_dealloc, 1)))
 InfoObject * _Info_new_internal(void) {
 
-	InfoObject *self = (InfoObject *)InfoType.tp_alloc(&InfoType, 0);
+	#pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+	InfoObject *self AUTO_DECREF = (InfoObject *)InfoType.tp_alloc(&InfoType, 0);
+    #pragma GCC diagnostic pop
+
+	if (!self) {
+		return NULL;
+	}
 
 	self->interfaces = csp_interfaces_to_tuple();
+	if (!self->interfaces) {
+		return NULL;
+	}
 	self->routes = csp_routes_to_tuple();
+	if (!self->routes) {
+		return NULL;
+	}
 
-	return self;
+	return (InfoObject*)Py_NewRef((PyObject*)self);
 }
 
 __attribute__((malloc(Info_dealloc, 1)))
