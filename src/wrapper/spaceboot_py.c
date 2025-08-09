@@ -268,6 +268,10 @@ extern unsigned int rdp_tmp_delayed_acks;
 extern unsigned int rdp_tmp_ack_timeout;
 extern unsigned int rdp_tmp_ack_count;
 
+#define RDP_KWARGS "window", "conn_timeout", "packet_timeout", "delayed_acks", "ack_timeout", "ack_count"
+#define RDP_OPTS &rdp_tmp_window, &rdp_tmp_conn_timeout, &rdp_tmp_packet_timeout, &rdp_tmp_delayed_acks, &rdp_tmp_ack_timeout, &rdp_tmp_ack_count
+#define RDP_TYPESTR "IIIIII"
+
 PyObject * pycsh_csh_program(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	CSP_INIT_CHECK()
@@ -286,12 +290,9 @@ PyObject * pycsh_csh_program(PyObject * self, PyObject * args, PyObject * kwds) 
 	rdp_tmp_ack_timeout = rdp_dfl_ack_timeout;
 	rdp_tmp_ack_count = rdp_dfl_ack_count;
 
-	#define RDP_KWARGS "window", "conn_timeout", "packet_timeout", "delayed_acks", "ack_timeout", "ack_count"
-	#define RDP_OPTS &rdp_tmp_window, &rdp_tmp_conn_timeout, &rdp_tmp_packet_timeout, &rdp_tmp_delayed_acks, &rdp_tmp_ack_timeout, &rdp_tmp_ack_count
-
     static char *kwlist[] = {"slot", "filename", "node", "do_crc32", RDP_KWARGS, NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|Ip$IIIIII:program", kwlist, &slot, &filename, &node, &do_crc32, RDP_OPTS))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "Is|Ip$"RDP_TYPESTR":program", kwlist, &slot, &filename, &node, &do_crc32, RDP_OPTS))
 		return NULL;  // TypeError is thrown
 
 	/* Temporarily set RDP options */
@@ -384,20 +385,22 @@ PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
     char * filename = NULL;
 	unsigned int node = pycsh_dfl_node;
 
-	/* RDPOPT */
-	unsigned int window = 3;
-	unsigned int conn_timeout = 10000;
-	unsigned int packet_timeout = 5000;
-	unsigned int ack_timeout = 2000;
-	unsigned int ack_count = 2;
+	/* RDPOPT - Keyword-only */
+	rdp_tmp_window = rdp_dfl_window;
+	rdp_tmp_conn_timeout = rdp_dfl_conn_timeout;
+	rdp_tmp_packet_timeout = rdp_dfl_packet_timeout;
+	rdp_tmp_delayed_acks = rdp_dfl_delayed_acks;
+	rdp_tmp_ack_timeout = rdp_dfl_ack_timeout;
+	rdp_tmp_ack_count = rdp_dfl_ack_count;
 
-    static char *kwlist[] = {"from", "to", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", NULL};
+    static char *kwlist[] = {"from_", "to", "filename", "node", RDP_KWARGS, NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIs|IIIIII:sps", kwlist, &from, &to, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIs|I$"RDP_TYPESTR":sps", kwlist, &from, &to, &filename, &node, RDP_OPTS))
 		return NULL;  // TypeError is thrown
 
-	printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
-	csp_rdp_set_opt(window, conn_timeout, packet_timeout, 1, ack_timeout, ack_count);
+	/* Temporarily set RDP options */
+	rdp_opt_set();
+	void * rdp_cleanup __attribute__((cleanup(_auto_reset_rdp))) = NULL;
 
 	int type = 0;
 	if (from >= 2)
