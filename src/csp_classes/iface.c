@@ -5,6 +5,7 @@
 
 #include <csp/csp_cmp.h>
 #include <csp/csp_types.h>
+#include <csp/interfaces/csp_if_zmqhub.h>
 
 #include "../pycsh.h"
 #include <pycsh/utils.h>
@@ -208,21 +209,51 @@ static PyObject * Interface_get_irq(InterfaceObject *self, void *closure) {
 
 
 static PyGetSetDef Interface_getset[] = {
-    {"addr", (getter) Interface_get_addr, NULL, "Interface address", NULL},
-    {"netmask", (getter) Interface_get_netmask, NULL, "Subnet mask", NULL},
-    {"name", (getter) Interface_get_name, NULL, "Interface name", NULL},
-    {"is_default", (getter) Interface_get_is_default, NULL, "Default interface flag", NULL},
-    {"tx", (getter) Interface_get_tx, NULL, "Transmitted packets", NULL},
-    {"rx", (getter) Interface_get_rx, NULL, "Received packets", NULL},
-    {"tx_error", (getter) Interface_get_tx_error, NULL, "Transmit errors", NULL},
-    {"rx_error", (getter) Interface_get_rx_error, NULL, "Receive errors", NULL},
-    {"drop", (getter) Interface_get_drop, NULL, "Dropped packets", NULL},
-    {"autherr", (getter) Interface_get_autherr, NULL, "Authentication errors", NULL},
-    {"frame", (getter) Interface_get_frame, NULL, "Frame format errors", NULL},
-    {"txbytes", (getter) Interface_get_txbytes, NULL, "Transmitted bytes", NULL},
-    {"rxbytes", (getter) Interface_get_rxbytes, NULL, "Received bytes", NULL},
-    {"irq", (getter) Interface_get_irq, NULL, "Interrupts", NULL},
+    {"addr", (getter) Interface_get_addr, NULL, PyDoc_STR("Interface address"), NULL},
+    {"netmask", (getter) Interface_get_netmask, NULL, PyDoc_STR("Subnet mask"), NULL},
+    {"name", (getter) Interface_get_name, NULL, PyDoc_STR("Interface name"), NULL},
+    {"is_default", (getter) Interface_get_is_default, NULL, PyDoc_STR("Default interface flag"), NULL},
+    {"tx", (getter) Interface_get_tx, NULL, PyDoc_STR("Transmitted packets"), NULL},
+    {"rx", (getter) Interface_get_rx, NULL, PyDoc_STR("Received packets"), NULL},
+    {"tx_error", (getter) Interface_get_tx_error, NULL, PyDoc_STR("Transmit errors"), NULL},
+    {"rx_error", (getter) Interface_get_rx_error, NULL, PyDoc_STR("Receive errors"), NULL},
+    {"drop", (getter) Interface_get_drop, NULL, PyDoc_STR("Dropped packets"), NULL},
+    {"autherr", (getter) Interface_get_autherr, NULL, PyDoc_STR("Authentication errors"), NULL},
+    {"frame", (getter) Interface_get_frame, NULL, PyDoc_STR("Frame format errors"), NULL},
+    {"txbytes", (getter) Interface_get_txbytes, NULL, PyDoc_STR("Transmitted bytes"), NULL},
+    {"rxbytes", (getter) Interface_get_rxbytes, NULL, PyDoc_STR("Received bytes"), NULL},
+    {"irq", (getter) Interface_get_irq, NULL, PyDoc_STR("Interrupts"), NULL},
     {NULL}  // Sentinel
+};
+
+
+PyObject * Interface_set_promisc(InterfaceObject * self, PyObject * args) {
+
+    int csp_zmqhub_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me);
+    if (self->iface->nexthop != csp_zmqhub_tx) {
+        PyErr_SetString(PyExc_NotImplementedError, "`Interface.set_promisc()` can currently only be called on ZMQ interfaces");
+        return NULL;
+    }
+
+	int new_promisc = false;
+
+	if (!PyArg_ParseTuple(args, "p:set_promisc", &new_promisc)) {
+		return NULL;
+	}
+
+	if (new_promisc) {
+        csp_zmqhub_remove_filters(self->iface);
+    } else {
+        csp_zmqhub_add_filters(self->iface);
+    }
+
+	Py_RETURN_NONE;
+}
+
+
+static PyMethodDef Interface_methods[] = {
+    {"set_promisc", (PyCFunction)Interface_set_promisc, METH_VARARGS, PyDoc_STR("Update whether CSP interface should be promisc")},
+    {NULL, NULL, 0, NULL}
 };
 
 PyTypeObject InterfaceType = {
@@ -233,6 +264,7 @@ PyTypeObject InterfaceType = {
     .tp_itemsize = 0,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_new = Interface_new,
-	.tp_getset = Interface_getset,
-	.tp_str = (reprfunc)Interface_str,
+    .tp_getset = Interface_getset,
+    .tp_methods = Interface_methods,
+    .tp_str = (reprfunc)Interface_str,
 };

@@ -15,6 +15,10 @@ typedef struct {
         We really need some more hooks. */
     csp_iface_t * iface;
 
+    /* Practically all CSP interface types have a concept of `promisc`,
+        but they don't store the explicit state on the struct.
+        Perhaps we should? But we need to know how the interface was initially initialized. */
+
 } InterfaceObject;
 
 InterfaceObject * Interface_from_csp_iface_t(PyTypeObject *type, csp_iface_t * ifc);
