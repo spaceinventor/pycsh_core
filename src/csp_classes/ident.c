@@ -97,7 +97,7 @@ static PyObject * Ident_new(PyTypeObject *type, PyObject *args, PyObject *kwds) 
 
     unsigned int node = pycsh_dfl_node;
     unsigned int timeout = pycsh_dfl_timeout;
-    bool override = false;
+    int override = false;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "|IIp", kwlist, &node, &timeout, &override)) {
         return NULL;  // TypeError is thrown

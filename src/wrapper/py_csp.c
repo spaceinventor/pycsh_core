@@ -63,7 +63,7 @@ PyObject * pycsh_slash_ident(PyObject * self, PyObject * args, PyObject * kwds) 
 
     unsigned int node = pycsh_dfl_node;
     unsigned int timeout = pycsh_dfl_timeout;
-    bool override = false;
+    int override = false;
 
     static char *kwlist[] = {"node", "timeout", "override", NULL};
 
