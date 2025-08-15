@@ -28,5 +28,3 @@ PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * 
 PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * kwds);
 
 PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject * kwds);
-
-extern bool csp_initialized();

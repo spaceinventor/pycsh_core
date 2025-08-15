@@ -6,7 +6,7 @@
 #include <csp/csp_cmp.h>
 #include <csp/csp_types.h>
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 #include <apm/csh_api.h>
 

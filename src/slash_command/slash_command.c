@@ -14,7 +14,7 @@
 #include <slash/slash.h>
 
 #include "python_slash_command.h"
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 
 

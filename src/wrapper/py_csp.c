@@ -10,7 +10,7 @@
 
 #include <csp/csp_cmp.h>
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include "../csp_classes/info.h"
 #include "../csp_classes/iface.h"
 #include "../csp_classes/ifstat.h"

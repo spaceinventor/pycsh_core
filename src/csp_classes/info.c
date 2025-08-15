@@ -8,7 +8,7 @@
 
 #include "iface.h"
 #include "route.h"
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 #include <apm/csh_api.h>
 

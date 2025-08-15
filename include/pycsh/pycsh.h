@@ -15,9 +15,9 @@
 
 #include "pycshconfig.h"
 
-#include "wrapper/csp_init_py.h"
-
 #include <param/param_queue.h>
+
+extern bool csp_initialized();
 
 #define CSP_INIT_CHECK() \
 	if (!csp_initialized()) {\

@@ -5,7 +5,7 @@
 #include <slash/slash.h>
 #include <slash/completer.h>
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 
 

@@ -12,7 +12,7 @@
 #include <Python.h>
 #include "structmember.h"
 
-#include "pycsh.h"
+#include <pycsh/pycsh.h>
 #include "pycshconfig.h"
 
 #include <fcntl.h>

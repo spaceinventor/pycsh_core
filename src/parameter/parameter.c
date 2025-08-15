@@ -13,7 +13,7 @@
 
 #include <param/param.h>
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include "parameterarray.h"
 #include <pycsh/utils.h>
 

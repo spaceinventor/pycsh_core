@@ -15,7 +15,7 @@
 #include <param/param_client.h>
 #include <param/param_server.h>
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 
 #include "param_py.h"

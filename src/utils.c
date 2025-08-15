@@ -16,7 +16,7 @@
 #include <param/param_client.h>
 #include <param/param_string.h>
 
-#include "pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/parameter.h>
 #include <pycsh/pythonparameter.h>
 #include "parameter/parameterarray.h"

@@ -10,7 +10,7 @@
 
 #include "dflopt_py.h"
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <apm/csh_api.h>
 
 

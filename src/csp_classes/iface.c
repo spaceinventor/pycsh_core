@@ -7,7 +7,7 @@
 #include <csp/csp_types.h>
 #include <csp/interfaces/csp_if_zmqhub.h>
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 #include <apm/csh_api.h>
 

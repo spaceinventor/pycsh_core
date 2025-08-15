@@ -9,7 +9,7 @@
 
 #include "parameterarray.h"
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 
 

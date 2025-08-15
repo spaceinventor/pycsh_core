@@ -8,7 +8,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 
 #include "spaceboot_py.h"
 

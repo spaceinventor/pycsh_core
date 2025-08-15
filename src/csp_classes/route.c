@@ -8,7 +8,7 @@
 #include <csp/csp_rtable.h>
 
 #include "iface.h"
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 #include <apm/csh_api.h>
 

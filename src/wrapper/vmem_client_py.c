@@ -16,7 +16,7 @@
 #include <pycsh/utils.h>
 #include "../csp_classes/vmem.h"
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 
 PyObject * pycsh_vmem_download(PyObject * self, PyObject * args, PyObject * kwds) {
 

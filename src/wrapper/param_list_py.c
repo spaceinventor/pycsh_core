@@ -11,7 +11,7 @@
 #include <param/param_string.h>
 #include <param/param_list.h>
 
-#include "../pycsh.h"
+#include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 #include <pycsh/parameter.h>
 #include <pycsh/pythonparameter.h>
