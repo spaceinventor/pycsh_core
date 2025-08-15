@@ -17,6 +17,11 @@
 
 #include <param/param_queue.h>
 
+/**
+ * @brief string representing this version of PyCSH
+ */
+extern const char *pycsh_version_string;
+
 extern bool csp_initialized();
 
 #define CSP_INIT_CHECK() \

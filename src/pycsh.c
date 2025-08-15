@@ -67,8 +67,6 @@
 #include "wrapper/vmem_client_py.h"
 #include "wrapper/victoria_metrics_py.h"
 
-extern const char *pycsh_version_string;
-
 /* Assertions used when parsing Python arguments, i.e int -> uint32_t */
 static_assert(sizeof(unsigned int) == sizeof(uint32_t));
 
