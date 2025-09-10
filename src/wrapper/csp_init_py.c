@@ -305,9 +305,7 @@ PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * 
     
     int error = csp_can_socketcan_open_and_add_interface(device, name, addr, baud, promisc, &iface);
     if (error != CSP_ERR_NONE) {
-        char errbuf[100];
-        snprintf(errbuf, 100, "failed to add CAN interface [%s], error: %d", device, error);
-        PyErr_SetString(PyExc_SystemError, errbuf);
+        PyErr_Format(PyExc_SystemError, "failed to add CAN interface [%s], error: %d", device, error);
         return NULL;
     }
 
@@ -369,10 +367,7 @@ PyObject * pycsh_csh_csp_ifadd_eth(PyObject * self, PyObject * args, PyObject * 
 
     eth_select_interface(&device);
     if (strlen(device) == 0) {
-        unsigned int len = strlen("The specified ethernet interface () could not be found") + strlen(device) + 1;
-        char buf[len];
-        sprintf(buf, "The specified ethernet interface (%s) could not be found", device);
-        PyErr_SetString(PyExc_ValueError, buf);
+        PyErr_Format(PyExc_ValueError, "The specified ethernet interface (%s) could not be found", device);
         return NULL;
     }
 
