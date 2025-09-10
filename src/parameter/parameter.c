@@ -479,21 +479,19 @@ static PyGetSetDef Parameter_getsetters[] = {
 
 #if 1  // Parameter getsetters
 	{"host", (getter)Parameter_get_host, (setter)Parameter_set_host,
-     "host of the parameter", NULL},
+     PyDoc_STR("host of the parameter"), NULL},
 	{"remote_value", (getter)Parameter_get_remote_value, (setter)Parameter_set_remote_value,
-     "get/set the remote (and cached) value of the parameter", NULL},
+     PyDoc_STR("get/set the remote (and cached) value of the parameter"), NULL},
 	{"cached_value", (getter)Parameter_get_cached_value, (setter)Parameter_set_cached_value,
-     "get/set the cached value of the parameter", NULL},
-	{"value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
-     "value of the parameter", NULL},
+     PyDoc_STR("get/set the cached value of the parameter"), NULL},
 	{"is_vmem", (getter)Parameter_is_vmem, NULL,
-     "whether the parameter is a vmem parameter", NULL},
+     PyDoc_STR("whether the parameter is a vmem parameter"), NULL},
 	{"storage_type", (getter)Parameter_get_storage_type, NULL,
-     "storage type of the parameter", NULL},
+     PyDoc_STR("storage type of the parameter"), NULL},
 	{"timeout", (getter)Parameter_get_timeout, (setter)Parameter_set_timeout,
-     "timeout of the parameter", NULL},
+     PyDoc_STR("timeout of the parameter"), NULL},
 	{"retries", (getter)Parameter_get_retries, (setter)Parameter_set_retries,
-     "available retries of the parameter", NULL},
+     PyDoc_STR("available retries of the parameter"), NULL},
 #endif
     {NULL, NULL, NULL, NULL}  /* Sentinel */
 };
