@@ -202,11 +202,10 @@ static int ParameterList_init(ParameterListObject *self, PyObject *args, PyObjec
 	PyObject *item;
 
 	while ((item = PyIter_Next(iter)) != NULL) {
+		PyObject * _item AUTO_DECREF = item;
 
 		PyObject * valuetuple AUTO_DECREF = PyTuple_Pack(1, item);
 		ParameterList_append((PyObject *)self, valuetuple);
-
-		Py_DECREF(item);
 
 		if (PyErr_Occurred())  // Likely to happen when we fail to append an object.
 			return -1;

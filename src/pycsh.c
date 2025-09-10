@@ -80,7 +80,7 @@ PARAM_DEFINE_STATIC_RAM(1002, test_str,          PARAM_TYPE_STRING,  80, 1,  PM_
 
 
 
-unsigned int pycsh_dfl_verbose = -1;
+int pycsh_dfl_verbose = -1;
 
 void * onehz_task(void * param) {
 	while(1) {

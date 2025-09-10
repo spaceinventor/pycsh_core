@@ -436,6 +436,64 @@ typedef struct param_list_s {
 	param_t ** param_arr;
 } param_list_t;
 
+/* Do not apply parameters to the global list, only use the provided one */
+static void pycsh_param_queue_apply_listless(param_queue_t * queue, param_list_t * param_list, int from) {
+
+    int atomic_write = 0;
+	for (size_t i = 0; i < param_list->cnt; i++) {  /* Apply value to provided param_t* if they aren't in the list. */
+		param_t * param = param_list->param_arr[i];
+
+		/* Loop over paramid's in pull response */
+		mpack_reader_t reader;
+		mpack_reader_init_data(&reader, queue->buffer, queue->used);
+		while(reader.data < reader.end) {
+			int id, node, offset = -1;
+			csp_timestamp_t timestamp = { .tv_sec = 0, .tv_nsec = 0 };
+			param_deserialize_id(&reader, &id, &node, &timestamp, &offset, queue);
+			if (node == 0)
+				node = from;
+
+			/* List parameters have already been applied by param_queue_apply(). */
+			param_t * list_param = param_list_find_id(node, id);
+			if (list_param != NULL) {
+				/* Print the local RAM copy of the remote parameter (which is not in the list) */
+				// if (verbose) {
+				// 	param_print(param, -1, NULL, 0, verbose, 0);
+				// }
+				/* We need to discard the data field, to get to next paramid */
+				mpack_discard(&reader);
+				continue;
+			}
+
+			/* This is not our parameter, let's hope it has been applied by `param_queue_apply(...)` */
+			if (param->id != id) {
+				/* We need to discard the data field, to get to next paramid */
+				mpack_discard(&reader);
+				continue;
+			}
+
+			if ((param->mask & PM_ATOMIC_WRITE) && (atomic_write == 0)) {
+				atomic_write = 1;
+				if (param_enter_critical)
+					param_enter_critical();
+			}
+
+			param_deserialize_from_mpack_to_param(NULL, NULL, param, offset, &reader);
+
+			/* Print the local RAM copy of the remote parameter (which is not in the list) */
+			// if (verbose) {
+			// 	param_print(param, -1, NULL, 0, verbose, 0);
+			// }
+
+		}
+	}
+
+	if (atomic_write) {
+		if (param_exit_critical)
+			param_exit_critical();
+	}
+}
+
 static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int verbose, int version, void * context) {
 
 	int from = response->id.src;
@@ -459,59 +517,7 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 		TODO Kevin: Make sure ParameterList accounts for this scenario. */
 	param_queue_apply(&queue, 0, from);
 
-	int atomic_write = 0;
-	for (size_t i = 0; i < param_list->cnt; i++) {  /* Apply value to provided param_t* if they aren't in the list. */
-		param_t * param = param_list->param_arr[i];
-
-		/* Loop over paramid's in pull response */
-		mpack_reader_t reader;
-		mpack_reader_init_data(&reader, queue.buffer, queue.used);
-		while(reader.data < reader.end) {
-			int id, node, offset = -1;
-			csp_timestamp_t timestamp = { .tv_sec = 0, .tv_nsec = 0 };
-			param_deserialize_id(&reader, &id, &node, &timestamp, &offset, &queue);
-			if (node == 0)
-				node = from;
-
-			/* List parameters have already been applied by param_queue_apply(). */
-			param_t * list_param = param_list_find_id(node, id);
-			if (list_param != NULL) {
-				/* Print the local RAM copy of the remote parameter (which is not in the list) */
-				if (verbose) {
-					param_print(param, -1, NULL, 0, verbose, 0);
-				}
-				/* We need to discard the data field, to get to next paramid */
-				mpack_discard(&reader);
-				continue;
-			}
-
-			/* This is not our parameter, let's hope it has been applied by `param_queue_apply(...)` */
-			if (param->id != id) {
-				/* We need to discard the data field, to get to next paramid */
-				mpack_discard(&reader);
-				continue;
-			}
-
-			if ((param->mask & PM_ATOMIC_WRITE) && (atomic_write == 0)) {
-				atomic_write = 1;
-				if (param_enter_critical)
-					param_enter_critical();
-			}
-
-			param_deserialize_from_mpack_to_param(NULL, NULL, param, offset, &reader);
-
-			/* Print the local RAM copy of the remote parameter (which is not in the list) */
-			if (verbose) {
-				param_print(param, -1, NULL, 0, verbose, 0);
-			}
-
-		}
-	}
-
-	if (atomic_write) {
-		if (param_exit_critical)
-			param_exit_critical();
-	}
+	pycsh_param_queue_apply_listless(&queue, param_list, from);
 
 	csp_buffer_free(response);
 }
@@ -596,6 +602,87 @@ static int pycsh_param_pull_single(param_t *param, int offset, int prio, int ver
 	return param_transaction(packet, host, timeout, pycsh_param_transaction_callback_pull, verbose, version, &param_list);
 }
 
+
+static int pycsh_param_pull_queue(param_queue_t *queue, param_t *params, unsigned int param_cnt, int prio, int verbose, int host, int timeout, int version) {
+
+	csp_packet_t * packet = csp_buffer_get(PARAM_SERVER_MTU);
+	if (packet == NULL)
+		return -1;
+
+	if (version == 2) {
+		packet->data[0] = PARAM_PULL_REQUEST_V2;
+	} else {
+		packet->data[0] = PARAM_PULL_REQUEST;
+	}
+	packet->data[1] = 0;
+
+	param_list_t param_list = {
+		.param_arr = &params,
+		.cnt = param_cnt
+	};
+
+	packet->length = queue->used + 2;
+	packet->id.pri = prio;
+	return param_transaction(packet, host, timeout, pycsh_param_transaction_callback_pull, verbose, version, &param_list);
+}
+
+
+static int pycsh_param_push_queue(param_queue_t *queue, int prio, int verbose, int host, int timeout, uint32_t hwid, bool ack_with_pull) {
+
+	if ((queue == NULL) || (queue->used == 0))
+		return 0;
+
+	csp_packet_t * packet = csp_buffer_get(PARAM_SERVER_MTU);
+	if (packet == NULL)
+		return -2;
+
+	if (queue->version == 2) {
+		packet->data[0] = PARAM_PUSH_REQUEST_V2;
+	} else {
+		packet->data[0] = PARAM_PUSH_REQUEST;
+	}
+
+	packet->data[1] = 0;
+	param_transaction_callback_f cb = NULL;
+
+	if (ack_with_pull) {
+		packet->data[1] = 1;
+		cb = pycsh_param_transaction_callback_pull;
+	} else if (timeout == 0) {
+		packet->data[1] = PARAM_FLAG_NOACK;
+	}
+
+	memcpy(&packet->data[2], queue->buffer, queue->used);
+
+	packet->length = queue->used + 2;
+	packet->id.pri = prio;
+
+	/* Append hwid, no care given to endian at this point */
+	if (hwid > 0) {
+		packet->data[0] = PARAM_PUSH_REQUEST_V2_HWID;
+		//printf("Add hwid %x\n", hwid);
+		//csp_hex_dump("tx", packet->data, packet->length);
+		memcpy(&packet->data[packet->length], &hwid, sizeof(hwid));
+		packet->length += sizeof(hwid);
+
+	}
+
+	int result = param_transaction(packet, host, timeout, cb, verbose, queue->version, NULL);
+
+	if (result < 0) {
+		printf("push queue error\n");
+		return -1;
+	}
+
+	if(!ack_with_pull) {
+        /* TODO Kevin: This will nok work with PyCSH parameters outside of the list. */
+		param_queue_apply(queue, 0, host);
+	}
+
+	return 0;
+}
+
+
 /* Checks that the specified index is within bounds of the sequence index, raises IndexError if not.
    Supports Python backwards subscriptions, mutates the index to a positive value in such cases. */
 static int _pycsh_util_index(int seqlen, int *index) {
@@ -626,7 +713,7 @@ PyObject * _pycsh_util_get_single(param_t *param, int offset, int autopull, int 
 		Py_BEGIN_ALLOW_THREADS;
 		for (size_t i = 0; i < (retries > 0 ? retries : 1); i++) {
 			int param_pull_res;
-			param_pull_res = pycsh_param_pull_single(param, offset,  CSP_PRIO_NORM, 1, (host != INT_MIN ? host : *param->node), timeout, paramver);
+			param_pull_res = pycsh_param_pull_single(param, offset, CSP_PRIO_NORM, 1, (host != INT_MIN ? host : *param->node), timeout, paramver);
 			if (param_pull_res && i >= retries-1) {
 				no_reply = true;
 				break;
@@ -775,6 +862,34 @@ static int pycsh_param_pull_queue(param_queue_t *queue, uint8_t prio, int verbos
 }
 #endif
 
+static PyObject * _pycsh_get_str_value(PyObject * obj) {
+
+	// This 'if' exists for cases where the value
+	// of a parameter is assigned from that of another.
+	// i.e: 				param1.value = param2
+	// Which is equal to:	param1.value = param2.value
+	if (PyObject_TypeCheck(obj, &ParameterType)) {
+		// Return the value of the Parameter.
+
+		ParameterObject *paramobj = ((ParameterObject *)obj);
+
+		param_t * param = paramobj->param;
+		int host = paramobj->host;
+		int timeout = paramobj->timeout;
+		int retries = paramobj->retries;
+		int paramver = paramobj->paramver;
+
+		PyObject * value AUTO_DECREF = param->array_size > 0 ?
+			_pycsh_util_get_array(param, 0, host, timeout, retries, paramver, -1) :
+			_pycsh_util_get_single(param, INT_MIN, 0, host, timeout, retries, paramver, -1);
+
+		PyObject * strvalue = PyObject_Str(value);
+		return strvalue;
+	}
+	else  // Otherwise use __str__.
+		return PyObject_Str(obj);
+}
+
 /* Private interface for getting the value of an array parameter
    Increases the reference count of the returned tuple before returning.  */
 PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
@@ -825,32 +940,363 @@ PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int tim
 	return value_tuple;
 }
 
-static PyObject * _pycsh_get_str_value(PyObject * obj) {
 
-	// This 'if' exists for cases where the value 
-	// of a parmeter is assigned from that of another.
-	// i.e: 				param1.value = param2
-	// Which is equal to:	param1.value = param2.value
-	if (PyObject_TypeCheck(obj, &ParameterType)) {
-		// Return the value of the Parameter.
+static void _pyval_to_param_valuebuf(char valuebuf[128] /*__attribute__((aligned(16)))*/, PyObject* value, param_type_e type) {
+    PyObject * strvalue AUTO_DECREF = _pycsh_get_str_value(value);
+    switch (type) {
+        case PARAM_TYPE_XINT8:
+        case PARAM_TYPE_XINT16:
+        case PARAM_TYPE_XINT32:
+        case PARAM_TYPE_XINT64:
+            // If the destination parameter is expecting a hexadecimal value
+            // and the Python object value is of Long type (int), then we need
+            // to do a conversion here. Otherwise if the Python value is a string
+            // type, then we must expect hexadecimal digits only (including 0x)
+            if (PyLong_Check(value)) {
+                // Convert the integer value to hexadecimal digits
+                char tmp[64];
+                snprintf(tmp,64,"0x%lX", PyLong_AsUnsignedLong(value));
+                // Convert the hexadecimal C-string into a Python string object
+                PyObject *py_long_str = PyUnicode_FromString(tmp);
+                // De-reference the original strvalue before assigning a new
+                Py_DECREF(strvalue);
+                strvalue = py_long_str;
+            }
+            break;
 
-		ParameterObject *paramobj = ((ParameterObject *)obj);
+        default:
+            break;
+    }
+    param_str_to_value(type, (char*)PyUnicode_AsUTF8(strvalue), valuebuf);
+}
 
-		param_t * param = paramobj->param;
-		int host = paramobj->host;
-		int timeout = paramobj->timeout;
-		int retries = paramobj->retries;
-		int paramver = paramobj->paramver;
 
-		PyObject * value AUTO_DECREF = param->array_size > 0 ? 
-			_pycsh_util_get_array(param, 0, host, timeout, retries, paramver, -1) :
-			_pycsh_util_get_single(param, INT_MIN, 0, host, timeout, retries, paramver, -1);
+/**
+ * @returns <0 on exception set, otherwise >0 index.
+ */
+static int obj_to_index_in_range(PyObject *index, int seqlen) {
+    if (!PyLong_Check(index)) {
+        PyErr_Format(PyExc_TypeError, "indexes in `indexes` must be integers. Not '%s'", index->ob_type->tp_name);
+        return -3;
+    }
 
-		PyObject * strvalue = PyObject_Str(value);
-		return strvalue;
+    /* TODO Kevin: Overflow check */
+    assert(!PyErr_Occurred());  /* Assert that we don't override an existing exception. */
+    int offset = PyLong_AsLong(index);
+    assert(!PyErr_Occurred());  /* And assert that we don't create a new one. */
+
+    /* Handle negative indexes */
+    if (_pycsh_util_index(seqlen, &offset)) {  // Validate the offset.
+        return -4;  // Raises IndexError.
+    }
+
+    assert(offset >= 0);
+    return offset;
+}
+
+
+/* Only pulls from remote, does not construct value.
+    Pull multiple specific indexes from a single parameter. */
+static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+
+    PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
+    if (!indexes) {
+        /* Default to setting the entire parameter. */
+        indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
+        if (!indexes) {
+            return -8;
+        }
+    }
+
+    assert(indexes);
+	if (PySlice_Check(indexes)) {
+		//PySliceObject * slice = (PySliceObject*)indexes;
+		Py_ssize_t start, stop, step, slicelength;
+        if (PySlice_GetIndicesEx(indexes, param->array_size, &start, &stop, &step, &slicelength) < 0) {
+            // Error handling (e.g., seq_length is negative or invalid slice)
+            return -9;
+        }
+		if (start == 0 && step == 1 && slicelength == param->array_size) {
+			/* Return whole array, which may be more efficient. */
+			/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
+            PyObject *whole_array AUTO_DECREF = _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+			return (whole_array != NULL) ? 0 : -1;
+		}
 	}
-	else  // Otherwise use __str__.
-		return PyObject_Str(obj);
+
+	if (!PyIter_Check(indexes)) {
+		PyErr_SetString(PyExc_TypeError, "`indexes` must be iterable");
+		return -1;
+	}
+
+    PyObject *iter AUTO_DECREF = PyObject_GetIter(indexes);
+    if (!iter) {
+        assert(PyErr_Occurred());
+        return -7;
+    }
+	PyObject *index;
+
+	void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
+	if (!queuebuffer) {
+		PyErr_NoMemory();
+		return -2;
+	}
+	param_queue_t queue = { };
+	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_GET, paramver);
+
+	while ((index = PyIter_Next(iter)) != NULL) {
+        PyObject * _index AUTO_DECREF = index;
+
+        int offset = obj_to_index_in_range(index, param->array_size);
+        if (offset < 0) {
+            assert(PyErr_Occurred());
+            return offset;  /* Error code */
+        }
+
+		if (param_queue_add(&queue, param, offset, NULL) < 0) {
+			PyErr_SetString(PyExc_MemoryError, "Queue full");
+			return -5;
+		}
+	}
+
+    bool no_reply = false;
+    Py_BEGIN_ALLOW_THREADS;
+    for (size_t i = 0; i < (retries > 0 ? retries : 1); i++) {
+        if (pycsh_param_pull_queue(&queue, param, 1, CSP_PRIO_NORM, verbose, host, timeout, paramver)) {
+            no_reply = true;
+            break;
+        }
+    }
+    Py_END_ALLOW_THREADS;
+
+    if (no_reply) {
+        PyErr_Format(PyExc_ConnectionError, "No response from node %d", *param->node);
+        return -6;
+    }
+
+    return 0;
+}
+
+
+#if 0
+/* TODO Kevin: Is it worth making a callback iterator for `_pycsh_param_pull_single_indexes()` and `_pycsh_util_get_array_indexes()` ? */
+/**
+ * @brief Call the callback function with every element in the provided iterable
+ *
+ * @returns 0< on failure, otherwise returns number of iterations.
+ */
+typedef void (*pycsh_iter_foreach_f)(PyObject *element, void * context);
+static int _pycsh_iter_foreach(PyObject * iterable, pycsh_iter_foreach_f callback, void * context) {
+
+    PyObject *iter AUTO_DECREF = PyObject_GetIter(iterable);
+	PyObject *index;
+
+    size_t num_indexes = 0;
+	while ((index = PyIter_Next(iter)) != NULL) {
+        PyObject * _item AUTO_DECREF = index;  /* `Py_DecRef()` each element */
+
+        if (!PyLong_Check(index)) {
+			PyErr_Format(PyExc_TypeError, "indexes in `indexes` must be integers. Not '%s'", index->ob_type->tp_name);
+			return NULL;
+		}
+
+        /* TODO Kevin: Overflow check */
+        assert(!PyErr_Occurred());  /* Assert that we don't override an existing exception. */
+        int offset = PyLong_AsLong(index);
+        assert(!PyErr_Occurred());  /* And assert that we don't create a new one. */
+
+        /* Handle negative indexes */
+        if (_pycsh_util_index(param->array_size, &offset)) {  // Validate the offset.
+			return NULL;  // Raises IndexError.
+		}
+
+		PyObject * value = _pycsh_util_get_single(param, offset, 0, host, timeout, retries, paramver, verbose);
+
+		if (value == NULL) {  // Something went wrong, probably a ConnectionError. Let's abandon ship.
+			return NULL;
+		}
+
+		PyTuple_SET_ITEM(value_tuple, offset, value);
+        num_indexes++;
+	}
+
+}
+#endif
+
+
+/* Similar to `_pycsh_util_get_array()`, but accepts a `PyObject * indexes`,
+	which will be iterated to map out specific indexes to retrieve/return. */
+PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+
+	assert(param);
+	if (param->type == PARAM_TYPE_STRING || param->type == PARAM_TYPE_DATA) {
+		/* No slicing support for `PARAM_TYPE_STRING` and `PARAM_TYPE_DATA`.
+			just pull the whole parameter.
+			We may consider returning slices in the future,
+			even if we still have to pull all of it. */
+		return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+	}
+
+    PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
+    if (!indexes) {
+        /* Default to setting the entire parameter. */
+        indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
+        if (!indexes) {
+            return NULL;
+        }
+    }
+
+    assert(indexes);
+    if (PySlice_Check(indexes)) {
+		//PySliceObject * slice = (PySliceObject*)indexes;
+		Py_ssize_t start, stop, step, slicelength;
+        if (PySlice_GetIndicesEx(indexes, param->array_size, &start, &stop, &step, &slicelength) < 0) {
+            // Error handling (e.g., seq_length is negative or invalid slice)
+            return NULL;
+        }
+		if (start == 0 && step == 1 && slicelength == param->array_size) {
+			/* Return whole array, which may be more efficient. */
+			/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
+			return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+		}
+	}
+
+	if (!PyIter_Check(indexes)) {
+		PyErr_SetString(PyExc_TypeError, "`indexes` must be iterable");
+		return NULL;
+	}
+
+
+	// Pull the value for every index using a queue (if we're allowed to),
+	// instead of pulling them individually.
+	if (autopull && *param->node != 0) {
+        if (_pycsh_param_pull_single_indexes(param, indexes, autopull, host, timeout, retries, paramver, verbose)) {
+            return NULL;
+        }
+	}
+
+	/* We will populate this tuple with specified slice of values from the indexes.
+        It cannot possibly be larger than the parameter itself. So we shrink it from that. */
+	PyObject * value_tuple AUTO_DECREF = PyTuple_New(param->array_size);
+
+    if (!value_tuple) {
+        return PyErr_NoMemory();
+    }
+
+    PyObject *iter AUTO_DECREF = PyObject_GetIter(indexes);
+	PyObject *index;
+
+    size_t num_indexes = 0;
+	while ((index = PyIter_Next(iter)) != NULL) {
+        PyObject * _index AUTO_DECREF = index;  /* `Py_DecRef()` each element */
+
+        int offset = obj_to_index_in_range(index, param->array_size);
+        if (offset < 0) {
+            assert(PyErr_Occurred());
+            return NULL;
+        }
+
+		PyObject * value = _pycsh_util_get_single(param, offset, 0, host, timeout, retries, paramver, verbose);
+
+		if (value == NULL) {  // Something went wrong, probably a ConnectionError. Let's abandon ship.
+			return NULL;
+		}
+
+		PyTuple_SET_ITEM(value_tuple, offset, value);
+        num_indexes++;
+	}
+
+    /* Shrink tuple to actual number of indexes. */
+    if (_PyTuple_Resize(&value_tuple, num_indexes) < 0) {
+        PyErr_SetString(PyExc_RuntimeError, "Failed to resize tuple for ident replies");
+        return NULL;
+    }
+
+	return Py_NewRef(value_tuple);
+}
+
+
+PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+
+    assert(param);
+    assert(values);
+
+    PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
+    if (!indexes) {
+        /* Default to setting the entire parameter. */
+        indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
+    }
+    assert(indexes);
+
+    void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
+	if (!queuebuffer) {
+		PyErr_NoMemory();
+		return NULL;
+	}
+	param_queue_t queue = { };
+	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
+
+    PyObject *values_iter AUTO_DECREF = PyObject_GetIter(values);
+    if (!values_iter) {
+        assert(PyErr_Occurred());
+        return NULL;
+    }
+    PyObject *indexes_iter AUTO_DECREF = PyObject_GetIter(indexes);
+    if (!indexes_iter) {
+        assert(PyErr_Occurred());
+        return NULL;
+    }
+
+    while (1) {
+        assert(!PyErr_Occurred());
+        PyObject * value AUTO_DECREF = PyIter_Next(values_iter);
+        if (PyErr_Occurred()) {
+            return NULL;
+        }
+        PyObject * index AUTO_DECREF = PyIter_Next(indexes_iter);
+        if (PyErr_Occurred()) {
+            return NULL;
+        }
+
+        if (!value && !index) {
+            break;
+        } else if (!index) {
+            PyErr_SetString(PyExc_ValueError, "Received fewer indexes than values");
+            return NULL;
+        } else if (!value) {
+            PyErr_SetString(PyExc_ValueError, "Received fewer values than indexes");
+            return NULL;
+        }
+
+        int offset = obj_to_index_in_range(index, param->array_size);
+        if (offset < 0) {
+            assert(PyErr_Occurred());
+            return NULL;
+        }
+
+        char valuebuf[128] __attribute__((aligned(16))) = { };
+        _pyval_to_param_valuebuf(valuebuf, value, param->type);
+        if (param_queue_add(&queue, param, offset, value) < 0) {
+			PyErr_SetString(PyExc_MemoryError, "Queue full");
+			return NULL;
+		}
+    }
+
+    if (host != 0) {
+		if (pycsh_param_push_queue(&queue, 1, verbose, host, timeout, 0, true) < 0) {  // TODO Kevin: We should probably have a parameter for hwid here.
+			PyErr_Format(PyExc_ConnectionError, "No response from node %d", *param->node);
+			return NULL;
+		}
+	} else {
+        param_list_t param_list = {
+            .param_arr = &param,
+            .cnt = 1
+        };
+        /* TODO Kevin: is `host` the correct from node here? */
+        pycsh_param_queue_apply_listless(&queue, &param_list, host);
+    }
+
+    Py_RETURN_NONE;
 }
 
 /* Attempts a conversion to the specified type, by calling it. */
@@ -886,6 +1332,7 @@ static int _pycsh_typecheck_sequence(PyObject * sequence, PyTypeObject * type) {
 	PyObject *item;
 
 	while ((item = PyIter_Next(iter)) != NULL) {
+        PyObject * _item AUTO_DECREF = item;
 
 		if (!_pycsh_typeconvert(item, type, 1)) {
 #if 0  // Should we raise the exception from the failed conversion, or our own?
@@ -908,46 +1355,21 @@ static int _pycsh_typecheck_sequence(PyObject * sequence, PyTypeObject * type) {
    Use INT_MIN as no offset. */
 int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host, int timeout, int retries, int paramver, int remote, int verbose) {
 	
-	if (offset != INT_MIN) {
-		if (param->type == PARAM_TYPE_STRING) {
+	if (offset == INT_MIN) {
+        offset = -1;
+    } else {
+        if (param->type == PARAM_TYPE_STRING) {
 			PyErr_SetString(PyExc_NotImplementedError, "Cannot set string parameters by index.");
 			return -1;
 		}
 
-		if (_pycsh_util_index(param->array_size, &offset))  // Validate the offset.
+		if (_pycsh_util_index(param->array_size, &offset)) {  // Validate the offset.
 			return -1;  // Raises IndexError.
-	} else
-		offset = -1;
+        }
+    }
 
 	char valuebuf[128] __attribute__((aligned(16))) = { };
- 	{   // Stringify the value object
-		PyObject * strvalue AUTO_DECREF = _pycsh_get_str_value(value);
-		switch (param->type) {
-			case PARAM_TYPE_XINT8:
-			case PARAM_TYPE_XINT16:
-			case PARAM_TYPE_XINT32:
-			case PARAM_TYPE_XINT64:
-				// If the destination parameter is expecting a hexadecimal value
-				// and the Python object value is of Long type (int), then we need
-				// to do a conversion here. Otherwise if the Python value is a string
-				// type, then we must expect hexadecimal digits only (including 0x)
-				if (Py_IS_TYPE(value, &PyLong_Type)) {
-					// Convert the integer value to hexadecimal digits
-					char tmp[64];
-					snprintf(tmp,64,"0x%lX", PyLong_AsUnsignedLong(value));
-					// Convert the hexadecimal C-string into a Python string object
-					PyObject *py_long_str = PyUnicode_FromString(tmp);
-					// De-reference the original strvalue before assigning a new
-					Py_DECREF(strvalue);
-					strvalue = py_long_str;
-				}
-				break;
-
-			default:
-				break;
-		}
-		param_str_to_value(param->type, (char*)PyUnicode_AsUTF8(strvalue), valuebuf);
-	}
+ 	_pyval_to_param_valuebuf(valuebuf, value, param->type);
 
 	int dest = (host != INT_MIN ? host : *param->node);
 
@@ -1064,8 +1486,8 @@ int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout
 
 	param_queue_print(&queue);
 	
-	if (*param->node != 0) {
-		if (param_push_queue(&queue, 1, 0, *param->node, 100, 0, false) < 0) {  // TODO Kevin: We should probably have a parameter for hwid here.
+	if (host != 0) {
+		if (param_push_queue(&queue, 1, 0, host, 100, 0, false) < 0) {  // TODO Kevin: We should probably have a parameter for hwid here.
 			PyErr_Format(PyExc_ConnectionError, "No response from node %d", *param->node);
 			return -6;
 		}

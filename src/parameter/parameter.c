@@ -160,7 +160,7 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const
 		}
 	}
 
-	self->host = host;
+	self->host = (host != INT_MIN) ? host : *param->node;
 	self->param = param;
 	self->timeout = timeout;
 	self->retries = retries;
@@ -291,23 +291,36 @@ static PyObject * Parameter_gettype(ParameterObject *self, void *closure) {
 	return (PyObject *)self->type;
 }
 
+#ifdef OLD_PARAM_API_ERROR
+
 static PyObject * Parameter_get_oldvalue(ParameterObject *self, void *closure) {
-	PyErr_SetString(PyExc_AttributeError, "Parameter.value has been changed to .remote_value and .cached_value instead");
+	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.remote_value` has been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
 	return NULL;
 }
 
 static int Parameter_set_oldvalue(ParameterObject *self, PyObject *value, void *closure) {
-	PyErr_SetString(PyExc_AttributeError, "Parameter.value has been changed to .remote_value and .cached_value instead");
+	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.remote_value` has been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
 	return -1;
 }
 
-static PyObject * Parameter_get_value(ParameterObject *self, int remote) {
+#else  /* OLD_PARAM_API_ERROR */
+
+static PyObject * _Parameter_get_value(ParameterObject *self, int remote) {
+
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.remote_value` has been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`", 2) < 0) {
+		return NULL;
+	}
+
 	if (self->param->array_size > 1 && self->param->type != PARAM_TYPE_STRING)
 		return _pycsh_util_get_array(self->param, remote, self->host, self->timeout, self->retries, self->paramver, pycsh_dfl_verbose);
 	return _pycsh_util_get_single(self->param, INT_MIN, remote, self->host, self->timeout, self->retries, self->paramver, pycsh_dfl_verbose);
 }
 
-static int Parameter_set_value(ParameterObject *self, PyObject *value, int remote) {
+static int _Parameter_set_value(ParameterObject *self, PyObject *value, int remote) {
+
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.remote_value` has been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`", 2) < 0) {
+		return -2;
+	}
 
 	if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the value attribute");
@@ -320,20 +333,93 @@ static int Parameter_set_value(ParameterObject *self, PyObject *value, int remot
 }
 
 static PyObject * Parameter_get_remote_value(ParameterObject *self, void *closure) {
-	return Parameter_get_value(self, 1);
+	return _Parameter_get_value(self, 1);
 }
 
 static PyObject * Parameter_get_cached_value(ParameterObject *self, void *closure) {
-	return Parameter_get_value(self, 0);
+	return _Parameter_get_value(self, 0);
 }
 
 static int Parameter_set_remote_value(ParameterObject *self, PyObject *value, void *closure) {
-	return Parameter_set_value(self, value, 1);
+	return _Parameter_set_value(self, value, 1);
 }
 
 static int Parameter_set_cached_value(ParameterObject *self, PyObject *value, void *closure) {
-	return Parameter_set_value(self, value, 0);
+	return _Parameter_set_value(self, value, 0);
 }
+
+#endif  /* OLD_PARAM_API_ERROR */
+
+
+PyObject * Parameter_get_value(ParameterObject * self, PyObject * args, PyObject * kwds) {
+	unsigned int index = INT_MIN;
+    int remote = true;
+	int verbose = pycsh_dfl_verbose;
+
+    static char *kwlist[] = {"index", "remote", "verbose", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Ipi:get_value", kwlist, &index, &remote, &verbose)) {
+        return NULL;
+    }
+
+	param_t *param = self->param;
+
+	return _pycsh_util_get_single(param, index, remote, self->host, self->timeout, self->retries, self->paramver, verbose);
+}
+
+PyObject * Parameter_set_value(ParameterObject * self, PyObject * args, PyObject * kwds) {
+	PyObject * value;
+	unsigned int index = 0;
+    int remote = true;
+	int verbose = pycsh_dfl_verbose;
+
+    static char *kwlist[] = {"value", "index", "remote", "verbose", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|Ipi:set_value", kwlist, &value, &index, &remote, &verbose)) {
+        return NULL;
+    }
+
+	param_t *param = self->param;
+
+	if (_pycsh_util_set_single(param, value, index, self->host, self->timeout, self->retries, self->paramver, remote, verbose) != 0) {
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+}
+
+PyObject * Parameter_get_value_array(ParameterObject * self, PyObject * args, PyObject * kwds) {
+
+	PyObject * indexes = NULL;
+    int remote = true;
+	int verbose = pycsh_dfl_verbose;
+
+    static char *kwlist[] = {"indexes", "remote", "verbose", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Opi:get_value_array", kwlist, &indexes, &remote, &verbose)) {
+        return NULL;
+    }
+
+	param_t * param = self->param;
+
+	return _pycsh_util_get_array_indexes(param, indexes, remote, self->host, self->timeout, self->retries, self->paramver, verbose);
+}
+
+PyObject * Parameter_set_value_array(ParameterObject * self, PyObject * args, PyObject * kwds) {
+
+	PyObject * values;
+	PyObject * indexes = NULL;
+    int remote = true;
+	int verbose = pycsh_dfl_verbose;
+
+    static char *kwlist[] = {"values", "indexes", "remote", "verbose", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|Opii:set_value_array", kwlist, &values, &indexes, &remote, &verbose)) {
+        return NULL;
+    }
+
+	param_t * param = self->param;
+
+	return _pycsh_util_set_array_indexes(param, values, indexes, remote, self->host, self->timeout, self->retries, self->paramver, verbose);
+}
+
+
 
 static PyObject * Parameter_is_vmem(ParameterObject *self, void *closure) {
 	// I believe this is the most appropriate way to check for vmem parameters.
@@ -480,12 +566,17 @@ static PyGetSetDef Parameter_getsetters[] = {
 #if 1  // Parameter getsetters
 	{"host", (getter)Parameter_get_host, (setter)Parameter_set_host,
      "host of the parameter", NULL},
+#ifdef OLD_PARAM_API_ERROR
+	{"remote_value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
+     "get/set the remote (and cached) value of the parameter", NULL},
+	{"cached_value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
+     "get/set the cached value of the parameter", NULL},
+#else  /* OLD_PARAM_API_ERROR */
 	{"remote_value", (getter)Parameter_get_remote_value, (setter)Parameter_set_remote_value,
      "get/set the remote (and cached) value of the parameter", NULL},
 	{"cached_value", (getter)Parameter_get_cached_value, (setter)Parameter_set_cached_value,
      "get/set the cached value of the parameter", NULL},
-	{"value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
-     "value of the parameter", NULL},
+#endif  /* OLD_PARAM_API_ERROR */
 	{"is_vmem", (getter)Parameter_is_vmem, NULL,
      "whether the parameter is a vmem parameter", NULL},
 	{"storage_type", (getter)Parameter_get_storage_type, NULL,
@@ -496,6 +587,16 @@ static PyGetSetDef Parameter_getsetters[] = {
      "available retries of the parameter", NULL},
 #endif
     {NULL, NULL, NULL, NULL}  /* Sentinel */
+};
+
+static PyMethodDef Parameter_methods[] = {
+    {"get_value", (PyCFunction)Parameter_get_value, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Returns the value of a single index, so the result will not be iterable (with the exception of string parameters, "\
+		"which always returns the whole string, ignoring the `index` argument).")},
+    {"set_value", (PyCFunction)Parameter_set_value, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Sets the value of the parameter.")},
+    {"get_value_array", (PyCFunction)Parameter_get_value_array, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Always return an iterable from the specified sequence. By default return the whole parameter. "\
+        "Examples for the following parameter `set index_array [0 1 2 3 4 5 6 7]`:")},
+    {"set_value_array", (PyCFunction)Parameter_set_value_array, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Sets the local cached value of the parameter.")},
+    {NULL, NULL, 0, NULL}
 };
 
 PyTypeObject ParameterType = {
@@ -509,7 +610,7 @@ PyTypeObject ParameterType = {
     .tp_dealloc = (destructor)Parameter_dealloc,
 	.tp_getset = Parameter_getsetters,
 	// .tp_members = Parameter_members,
-	// .tp_methods = Parameter_methods,
+	.tp_methods = Parameter_methods,
 	.tp_str = (reprfunc)Parameter_str,
 	.tp_richcompare = (richcmpfunc)Parameter_richcompare,
 	.tp_hash = (hashfunc)Parameter_hash,
