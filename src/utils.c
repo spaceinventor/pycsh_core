@@ -437,7 +437,7 @@ typedef struct param_list_s {
 } param_list_t;
 
 /* Do not apply parameters to the global list, only use the provided one */
-static void pycsh_param_queue_apply_listless(param_queue_t * queue, param_list_t * param_list, int from) {
+static void pycsh_param_queue_apply_listless(param_queue_t * queue, param_list_t * param_list, int from, bool skip_list) {
 
     int atomic_write = 0;
 	for (size_t i = 0; i < param_list->cnt; i++) {  /* Apply value to provided param_t* if they aren't in the list. */
@@ -453,16 +453,18 @@ static void pycsh_param_queue_apply_listless(param_queue_t * queue, param_list_t
 			if (node == 0)
 				node = from;
 
-			/* List parameters have already been applied by param_queue_apply(). */
-			param_t * list_param = param_list_find_id(node, id);
-			if (list_param != NULL) {
-				/* Print the local RAM copy of the remote parameter (which is not in the list) */
-				// if (verbose) {
-				// 	param_print(param, -1, NULL, 0, verbose, 0);
-				// }
-				/* We need to discard the data field, to get to next paramid */
-				mpack_discard(&reader);
-				continue;
+			if (skip_list) {
+				/* List parameters have already been applied by param_queue_apply(). */
+				const param_t * const list_param = param_list_find_id(node, id);
+				if (list_param != NULL) {
+					/* Print the local RAM copy of the remote parameter (which is not in the list) */
+					// if (verbose) {
+					// 	param_print(param, -1, NULL, 0, verbose, 0);
+					// }
+					/* We need to discard the data field, to get to next paramid */
+					mpack_discard(&reader);
+					continue;
+				}
 			}
 
 			/* This is not our parameter, let's hope it has been applied by `param_queue_apply(...)` */
@@ -517,7 +519,13 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 		TODO Kevin: Make sure ParameterList accounts for this scenario. */
 	param_queue_apply(&queue, 0, from);
 
-	pycsh_param_queue_apply_listless(&queue, param_list, from);
+	/* For now we tolerate possibly setting parameters twice,
+		as we have not had remote parameters with callbacks/side-effects yet.
+		Although it is possible, I have tested it.
+		We `assert()` that `pycsh_param_transaction_callback_pull()` is only used client-side.
+		So PyCSH parameter servers will only use `param_queue_apply()` to apply parameters,
+		meaning no worries about callbacks being set twice. */
+	pycsh_param_queue_apply_listless(&queue, param_list, from, true);
 
 	csp_buffer_free(response);
 }
@@ -862,6 +870,32 @@ static int pycsh_param_pull_queue(param_queue_t *queue, uint8_t prio, int verbos
 }
 #endif
 
+static PyObject * _slice_to_range(PyObject * slice, int seqlen, int *whole_range) {
+
+	assert(slice);
+	if (!PySlice_Check(slice)) {
+		PyErr_Format(PyExc_TypeError, "`slice` argument must be slice, not %s", slice->ob_type->tp_name);
+	}
+
+	Py_ssize_t start, stop, step, slicelength;
+	if (PySlice_GetIndicesEx(slice, seqlen, &start, &stop, &step, &slicelength) < 0) {
+		// Error handling (e.g., seq_length is negative or invalid slice)
+		return NULL;
+	}
+
+	if (whole_range) {
+		if (start == 0 && step == 1 && slicelength == seqlen) {
+			/* TODO Kevin: Pretty annoying that we may waste the returned `range()` object here,
+				but oh well. */
+			*whole_range = 1;
+		} else {
+			*whole_range = 0;
+		}
+	}
+
+	return PyObject_CallFunction((PyObject *)&PyRange_Type, "nnn", start, stop, step);
+}
+
 static PyObject * _pycsh_get_str_value(PyObject * obj) {
 
 	// This 'if' exists for cases where the value
@@ -1008,25 +1042,24 @@ static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, i
         }
     }
 
-    assert(indexes);
+	/* Make slices iterable by converting to iterables. */
+	PyObject * _default_range AUTO_DECREF = NULL;  /* Used for reference counting.*/
 	if (PySlice_Check(indexes)) {
-		//PySliceObject * slice = (PySliceObject*)indexes;
-		Py_ssize_t start, stop, step, slicelength;
-        if (PySlice_GetIndicesEx(indexes, param->array_size, &start, &stop, &step, &slicelength) < 0) {
-            // Error handling (e.g., seq_length is negative or invalid slice)
-            return -9;
-        }
-		if (start == 0 && step == 1 && slicelength == param->array_size) {
+
+		int whole_range = 0;
+		indexes = _default_range = _slice_to_range(indexes, param->array_size, &whole_range);
+
+		if (whole_range) {
+			PyErr_Clear();  /* we don't care if we couldn't crate the `range()` objects here. */
 			/* Return whole array, which may be more efficient. */
 			/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
-            PyObject *whole_array AUTO_DECREF = _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+			PyObject *whole_array AUTO_DECREF = _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
 			return (whole_array != NULL) ? 0 : -1;
 		}
-	}
 
-	if (!PyIter_Check(indexes)) {
-		PyErr_SetString(PyExc_TypeError, "`indexes` must be iterable");
-		return -1;
+		if (!indexes) {
+			return -9;
+		}
 	}
 
     PyObject *iter AUTO_DECREF = PyObject_GetIter(indexes);
@@ -1137,31 +1170,43 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 		return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
 	}
 
-    PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
+	/* Used for reference counting.
+		'indexes' is always a borrowed reference.
+		So we create this other variable for when we're creating a new reference,
+		so we can always `Py_DecRef()` it */
+    PyObject * _default_slice AUTO_DECREF = NULL;  
     if (!indexes) {
         /* Default to setting the entire parameter. */
-        indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
+        indexes = _default_slice = PySlice_New(NULL, NULL, NULL);
         if (!indexes) {
             return NULL;
         }
     }
 
-    assert(indexes);
-    if (PySlice_Check(indexes)) {
-		//PySliceObject * slice = (PySliceObject*)indexes;
-		Py_ssize_t start, stop, step, slicelength;
-        if (PySlice_GetIndicesEx(indexes, param->array_size, &start, &stop, &step, &slicelength) < 0) {
-            // Error handling (e.g., seq_length is negative or invalid slice)
-            return NULL;
-        }
-		if (start == 0 && step == 1 && slicelength == param->array_size) {
+	/* Make slices iterable by converting to iterables. */
+	PyObject * _default_range AUTO_DECREF = NULL;  /* Used for reference counting.*/
+	if (PySlice_Check(indexes)) {
+
+		int whole_range = 0;
+		indexes = _default_range = _slice_to_range(indexes, param->array_size, &whole_range);
+
+		if (whole_range) {
+			PyErr_Clear();  /* we don't care if we couldn't crate the `range()` objects here. */
 			/* Return whole array, which may be more efficient. */
 			/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
 			return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
 		}
-	}
 
-	if (!PyIter_Check(indexes)) {
+		if (!indexes) {
+			return NULL;
+		}
+	}
+	
+	assert(!PyErr_Occurred());
+	PyObject *iter AUTO_DECREF = PyObject_GetIter(indexes);
+	//if (!PyIter_Check(indexes)) {
+	if (!iter) {
+		PyErr_Clear();
 		PyErr_SetString(PyExc_TypeError, "`indexes` must be iterable");
 		return NULL;
 	}
@@ -1183,9 +1228,7 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
         return PyErr_NoMemory();
     }
 
-    PyObject *iter AUTO_DECREF = PyObject_GetIter(indexes);
 	PyObject *index;
-
     size_t num_indexes = 0;
 	while ((index = PyIter_Next(iter)) != NULL) {
         PyObject * _index AUTO_DECREF = index;  /* `Py_DecRef()` each element */
@@ -1193,6 +1236,7 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
         int offset = obj_to_index_in_range(index, param->array_size);
         if (offset < 0) {
             assert(PyErr_Occurred());
+            return NULL;
             return NULL;
         }
 
@@ -1202,9 +1246,15 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 			return NULL;
 		}
 
-		PyTuple_SET_ITEM(value_tuple, offset, value);
+		PyObject_Print(value, stdout, 1); printf("\n");
+
+		/* NOTE: It is tempting to `PyTuple_SET_ITEM(..., offset, ...)` here,
+			but that only works with whole arrays anyway. */
+		PyTuple_SET_ITEM(value_tuple, num_indexes, value);
         num_indexes++;
 	}
+
+	PyObject_Print(value_tuple, stdout, 1); printf("\n");
 
     /* Shrink tuple to actual number of indexes. */
     if (_PyTuple_Resize(&value_tuple, num_indexes) < 0) {
@@ -1225,8 +1275,23 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
     if (!indexes) {
         /* Default to setting the entire parameter. */
         indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
+		if (!indexes) {
+			return NULL;
+		}
     }
-    assert(indexes);
+
+	/* Make slices iterable by converting to iterables. */
+	PyObject * _default_range AUTO_DECREF = NULL;  /* Used for reference counting.*/
+	if (PySlice_Check(indexes)) {
+
+		indexes = _default_range = _slice_to_range(indexes, param->array_size, NULL);
+
+		/* NOTE: No check for `whole_range`. Use `Parameter.set_value()` to set the entire array with 1 value. */
+
+		if (!indexes) {
+			return NULL;
+		}
+	}
 
     void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
 	if (!queuebuffer) {
@@ -1276,7 +1341,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 
         char valuebuf[128] __attribute__((aligned(16))) = { };
         _pyval_to_param_valuebuf(valuebuf, value, param->type);
-        if (param_queue_add(&queue, param, offset, value) < 0) {
+        if (param_queue_add(&queue, param, offset, valuebuf) < 0) {
 			PyErr_SetString(PyExc_MemoryError, "Queue full");
 			return NULL;
 		}
@@ -1293,7 +1358,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
             .cnt = 1
         };
         /* TODO Kevin: is `host` the correct from node here? */
-        pycsh_param_queue_apply_listless(&queue, &param_list, host);
+        pycsh_param_queue_apply_listless(&queue, &param_list, host, false);
     }
 
     Py_RETURN_NONE;
