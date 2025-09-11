@@ -59,7 +59,6 @@ void _close_file(FILE *const* file) {
 	fclose(*file);
 }
 void cleanup_GIL(PyGILState_STATE * gstate) {
-	//printf("AAA %d\n", PyGILState_Check());
     //if (*gstate == PyGILState_UNLOCKED)
     //    return
     PyGILState_Release(*gstate);
@@ -1034,7 +1033,7 @@ static int obj_to_index_in_range(PyObject *index, int seqlen) {
 static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
 
     PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
-    if (!indexes) {
+    if (!indexes || indexes == Py_None) {
         /* Default to setting the entire parameter. */
         indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
         if (!indexes) {
@@ -1175,7 +1174,7 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 		So we create this other variable for when we're creating a new reference,
 		so we can always `Py_DecRef()` it */
     PyObject * _default_slice AUTO_DECREF = NULL;  
-    if (!indexes) {
+    if (!indexes || indexes == Py_None) {
         /* Default to setting the entire parameter. */
         indexes = _default_slice = PySlice_New(NULL, NULL, NULL);
         if (!indexes) {
@@ -1246,15 +1245,11 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 			return NULL;
 		}
 
-		PyObject_Print(value, stdout, 1); printf("\n");
-
 		/* NOTE: It is tempting to `PyTuple_SET_ITEM(..., offset, ...)` here,
 			but that only works with whole arrays anyway. */
 		PyTuple_SET_ITEM(value_tuple, num_indexes, value);
         num_indexes++;
 	}
-
-	PyObject_Print(value_tuple, stdout, 1); printf("\n");
 
     /* Shrink tuple to actual number of indexes. */
     if (_PyTuple_Resize(&value_tuple, num_indexes) < 0) {
@@ -1272,7 +1267,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
     assert(values);
 
     PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
-    if (!indexes) {
+    if (!indexes || indexes == Py_None) {
         /* Default to setting the entire parameter. */
         indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
 		if (!indexes) {
@@ -1504,9 +1499,7 @@ int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout
 	// We don't support assigning slices (or anything of the like) yet, so...
 	if (seqlen != param->array_size) {
 		if (param->array_size > 1) {  // Check that the lengths match.
-			char buf[120];
-			sprintf(buf, "Provided iterable's length does not match parameter's. <iterable length: %li> <param length: %i>", seqlen, param->array_size);
-			PyErr_SetString(PyExc_ValueError, buf);
+			PyErr_Format(PyExc_ValueError, "Provided iterable's length does not match parameter's. <iterable length: %li> <param length: %i>", seqlen, param->array_size);
 		} else {  // Check that the parameter is an array.
 			PyErr_SetString(PyExc_TypeError, "Cannot assign iterable to non-array type parameter.");
 		}
