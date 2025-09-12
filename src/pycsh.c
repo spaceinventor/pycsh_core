@@ -71,7 +71,7 @@
 static_assert(sizeof(unsigned int) == sizeof(uint32_t));
 
 // We include this parameter when testing the behavior of arrays, as none would exist otherwise.
-uint8_t _test_array[] = {1,2,3,4,5,6,7,8};
+uint8_t _test_array[] = {0,1,2,3,4,5,6,7};
 PARAM_DEFINE_STATIC_RAM(1001, test_array_param,          PARAM_TYPE_UINT8,  8, sizeof(uint8_t),  PM_DEBUG, NULL, "", _test_array, "Parameter to use when testing arrays.");
 
 static char _test_str[80];
