@@ -46,6 +46,7 @@
 #include "parameter/pythongetsetparameter.h"
 #include "parameter/pythongetsetarrayparameter.h"
 #include "parameter/parameterlist.h"
+#include "parameter/valueproxy.h"
 
 #include "csp_classes/ident.h"
 #include "csp_classes/ifstat.h"
@@ -325,6 +326,10 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
 			"Must be caught before ValueError() baseclass.",
 			PyExc_ValueError, NULL);
 		PyModule_AddObject_ErrCheck(pycsh, "ParamCallbackError", PyExc_InvalidParameterTypeError);
+	}
+
+	if (PyModule_AddType(pycsh, &ValueProxyType) < 0) {
+        return NULL;
 	}
 
 	if (PyModule_AddType(pycsh, &ParameterType) < 0) {

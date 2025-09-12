@@ -20,6 +20,7 @@ pycsh_sources = [
 	'src/parameter/pythongetsetparameter.c',
 	'src/parameter/pythongetsetarrayparameter.c',
 	'src/parameter/parameterlist.c',
+	'src/parameter/valueproxy.c',
 	'src/csp_classes/ident.c',
 	'src/csp_classes/vmem.c',
 	'src/csp_classes/info.c',

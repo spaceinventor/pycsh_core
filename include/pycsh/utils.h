@@ -116,6 +116,10 @@ int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout
  */
 ParameterObject * Parameter_wraps_param(param_t *param);
 
+/* Checks that the specified index is within bounds of the sequence index, raises IndexError if not.
+   Supports Python backwards subscriptions, mutates the index to a positive value in such cases. */
+int _pycsh_util_index(int seqlen, int *index);
+
 /**
  * @brief Convert a python str og int parameter mask to the uint32_t C equivalent.
  * 

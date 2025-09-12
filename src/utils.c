@@ -692,7 +692,7 @@ static int pycsh_param_push_queue(param_queue_t *queue, int prio, int verbose, i
 
 /* Checks that the specified index is within bounds of the sequence index, raises IndexError if not.
    Supports Python backwards subscriptions, mutates the index to a positive value in such cases. */
-static int _pycsh_util_index(int seqlen, int *index) {
+int _pycsh_util_index(int seqlen, int *index) {
 	if (*index < 0)  // Python backwards subscription.
 		*index += seqlen;
 	if (*index < 0 || *index > seqlen - 1) {
@@ -1173,21 +1173,20 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 		'indexes' is always a borrowed reference.
 		So we create this other variable for when we're creating a new reference,
 		so we can always `Py_DecRef()` it */
-    PyObject * _default_slice AUTO_DECREF = NULL;  
+    PyObject * _newref_indexes AUTO_DECREF = NULL;  
     if (!indexes || indexes == Py_None) {
         /* Default to setting the entire parameter. */
-        indexes = _default_slice = PySlice_New(NULL, NULL, NULL);
+        indexes = _newref_indexes = PySlice_New(NULL, NULL, NULL);
         if (!indexes) {
             return NULL;
         }
     }
 
 	/* Make slices iterable by converting to iterables. */
-	PyObject * _default_range AUTO_DECREF = NULL;  /* Used for reference counting.*/
 	if (PySlice_Check(indexes)) {
 
 		int whole_range = 0;
-		indexes = _default_range = _slice_to_range(indexes, param->array_size, &whole_range);
+		indexes = _newref_indexes = _slice_to_range(indexes, param->array_size, &whole_range);
 
 		if (whole_range) {
 			PyErr_Clear();  /* we don't care if we couldn't crate the `range()` objects here. */
@@ -1196,6 +1195,13 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 			return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
 		}
 
+		if (!indexes) {
+			return NULL;
+		}
+	}
+
+	if (PyLong_Check(indexes)) {
+		indexes = _newref_indexes = PyTuple_Pack(1, indexes);
 		if (!indexes) {
 			return NULL;
 		}
@@ -1235,7 +1241,6 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
         int offset = obj_to_index_in_range(index, param->array_size);
         if (offset < 0) {
             assert(PyErr_Occurred());
-            return NULL;
             return NULL;
         }
 

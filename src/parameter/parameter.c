@@ -287,8 +287,7 @@ static int Parameter_set_host(ParameterObject *self, PyObject *value, void *clos
 }
 
 static PyObject * Parameter_gettype(ParameterObject *self, void *closure) {
-	Py_INCREF(self->type);
-	return (PyObject *)self->type;
+	return (PyObject *)Py_NewRef(self->type);
 }
 
 #ifdef OLD_PARAM_API_ERROR
