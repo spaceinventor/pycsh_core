@@ -19,9 +19,7 @@
 #include <pycsh/pycsh.h>
 #include <pycsh/parameter.h>
 #include <pycsh/pythonparameter.h>
-#include "parameter/parameterarray.h"
 #include "parameter/parameterlist.h"
-#include "parameter/pythonarrayparameter.h"
 
 #undef NDEBUG
 #include <assert.h>
@@ -64,7 +62,7 @@ void cleanup_GIL(PyGILState_STATE * gstate) {
     PyGILState_Release(*gstate);
     //*gstate = NULL;
 }
-void cleanup_pyobject(PyObject **obj) {
+void cleanup_pyobject(PyObject * const * obj) {
     Py_XDECREF(*obj);
 }
 
@@ -1032,6 +1030,12 @@ static int obj_to_index_in_range(PyObject *index, int seqlen) {
     Pull multiple specific indexes from a single parameter. */
 static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
 
+	if (param->type == PARAM_TYPE_STRING || param->type == PARAM_TYPE_DATA) {
+		/* Always pull entirety of STRING and DATA parameters */
+		PyObject *pull_res AUTO_DECREF = _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+		return (pull_res == NULL) ? -1 : 0;
+	}
+
     PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
     if (!indexes || indexes == Py_None) {
         /* Default to setting the entire parameter. */
@@ -1052,8 +1056,8 @@ static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, i
 			PyErr_Clear();  /* we don't care if we couldn't crate the `range()` objects here. */
 			/* Return whole array, which may be more efficient. */
 			/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
-			PyObject *whole_array AUTO_DECREF = _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
-			return (whole_array != NULL) ? 0 : -1;
+			PyObject *pull_res AUTO_DECREF = _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+			return (pull_res == NULL) ? -1 : 0;
 		}
 
 		if (!indexes) {
@@ -1155,14 +1159,27 @@ static int _pycsh_iter_foreach(PyObject * iterable, pycsh_iter_foreach_f callbac
 }
 #endif
 
+#if 0
+static PyObject* slice_c_string(const char* c_str, Py_ssize_t c_len, PyObject* slice) {
+
+	/* Clamp to actual length to avoid `PyUnicode_FromStringAndSize()` padding with 0x00 bytes. */
+    PyObject* py_str AUTO_DECREF = PyUnicode_FromStringAndSize(c_str, strnlen(c_str, c_len));
+	if (!py_str) {
+		return NULL;
+	}
+
+	return PyObject_GetItem(py_str, slice);
+}
+#endif
+
 
 /* Similar to `_pycsh_util_get_array()`, but accepts a `PyObject * indexes`,
 	which will be iterated to map out specific indexes to retrieve/return. */
 PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
 
 	assert(param);
-	if (param->type == PARAM_TYPE_STRING || param->type == PARAM_TYPE_DATA) {
-		/* No slicing support for `PARAM_TYPE_STRING` and `PARAM_TYPE_DATA`.
+	if (param->type == PARAM_TYPE_DATA) {
+		/* No slicing support for `PARAM_TYPE_DATA`.
 			just pull the whole parameter.
 			We may consider returning slices in the future,
 			even if we still have to pull all of it. */
@@ -1184,6 +1201,8 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 
 	/* Make slices iterable by converting to iterables. */
 	if (PySlice_Check(indexes)) {
+
+		/* TODO Kevin: Check handling of PARAM_TYPE_DATA */
 
 		int whole_range = 0;
 		indexes = _newref_indexes = _slice_to_range(indexes, param->array_size, &whole_range);
@@ -1261,6 +1280,15 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
         PyErr_SetString(PyExc_RuntimeError, "Failed to resize tuple for ident replies");
         return NULL;
     }
+
+	/* TODO Kevin: Not sure if we can str.join() on PARAM_TYPE_DATA. */
+	if (param->type == PARAM_TYPE_STRING) {
+		PyObject * const empty_string AUTO_DECREF = PyUnicode_FromString("");  /* Needed to ''.join(value_tuple) */
+		if (!empty_string) {
+			return NULL;
+		}
+		return PyUnicode_Join(empty_string, value_tuple);
+	}
 
 	return Py_NewRef(value_tuple);
 }

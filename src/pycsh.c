@@ -41,10 +41,7 @@
 
 #include <pycsh/parameter.h>
 #include <pycsh/pythonparameter.h>
-#include "parameter/parameterarray.h"
-#include "parameter/pythonarrayparameter.h"
 #include "parameter/pythongetsetparameter.h"
-#include "parameter/pythongetsetarrayparameter.h"
 #include "parameter/parameterlist.h"
 #include "parameter/valueproxy.h"
 
@@ -336,20 +333,7 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
         return NULL;
 	}
 
-	if (PyModule_AddType(pycsh, &ParameterArrayType) < 0) {
-        return NULL;
-	}
-
 	if (PyModule_AddType(pycsh, &PythonParameterType) < 0) {
-        return NULL;
-	}
-
-	/* PythonArrayParameterType must be created dynamically after
-		ParameterArrayType and PythonParameterType to support multiple inheritance. */
-	if (create_pythonarrayparameter_type() == NULL) {
-		return NULL;
-	}
-    if (PyModule_AddType(pycsh, PythonArrayParameterType) < 0) {
         return NULL;
 	}
 
@@ -357,14 +341,6 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
         return NULL;
 	}
 
-	/* PythonArrayParameterType must be created dynamically after
-		ParameterArrayType and PythonParameterType to support multiple inheritance. */
-	if (create_pythongetsetarrayparameter_type() == NULL) {
-		return NULL;
-	}
-    if (PyModule_AddType(pycsh, PythonGetSetArrayParameterType) < 0) {
-        return NULL;
-	}
 
 	//ParameterListType.tp_base = &PyList_Type;
 	if (PyModule_AddType(pycsh, &ParameterListType) < 0) {

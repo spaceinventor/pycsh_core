@@ -25,6 +25,9 @@ typedef struct {
 		will be NULL before we query it. */
 	PyObject * value;
 
+	/* TODO Kevin: Can't really decide if we should have indexes here */
+	//PyObject * indexes;
+
 } ValueProxyObject;
 
 extern PyTypeObject ValueProxyType;

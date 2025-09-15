@@ -22,7 +22,7 @@ void cleanup_str(char *const* obj);
 void _close_dir(DIR *const* dir);
 void _close_file(FILE *const* file);
 void cleanup_GIL(PyGILState_STATE * gstate);
-void cleanup_pyobject(PyObject **obj);
+void cleanup_pyobject(PyObject * const * obj);
 
 void state_release_GIL(PyThreadState ** state);
 

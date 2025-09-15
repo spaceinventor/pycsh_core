@@ -14,11 +14,8 @@ pycsh_sources = [
 
 	# Classes
 	'src/parameter/parameter.c',
-	'src/parameter/parameterarray.c',
 	'src/parameter/pythonparameter.c',
-	'src/parameter/pythonarrayparameter.c',
 	'src/parameter/pythongetsetparameter.c',
-	'src/parameter/pythongetsetarrayparameter.c',
 	'src/parameter/parameterlist.c',
 	'src/parameter/valueproxy.c',
 	'src/csp_classes/ident.c',
