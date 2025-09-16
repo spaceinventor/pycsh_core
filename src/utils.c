@@ -15,6 +15,7 @@
 #include <param/param_server.h>
 #include <param/param_client.h>
 #include <param/param_string.h>
+#include <param/param_serializer.h>
 
 #include <pycsh/pycsh.h>
 #include <pycsh/parameter.h>
@@ -25,11 +26,6 @@
 
 #undef NDEBUG
 #include <assert.h>
-
-
-typedef void (*param_transaction_callback_f)(csp_packet_t *response, int verbose, int version, void * context);
-int param_transaction(csp_packet_t *packet, int host, int timeout, param_transaction_callback_f callback, int verbose, int version, void * context);
-void param_deserialize_from_mpack_to_param(void * context, void * queue, param_t * param, int offset, mpack_reader_t * reader);
 
 
 __attribute__((weak))  void cleanup_free(void *const* obj) {
