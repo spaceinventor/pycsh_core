@@ -400,9 +400,9 @@ PythonParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, pa
 
 static PyObject * PythonParameter_new(PyTypeObject *type, PyObject * args, PyObject * kwds) {
 
-    uint16_t id;
+    uint16_t id; static_assert(sizeof(unsigned short int) == sizeof(uint16_t));  /* For `PyArg_ParseTupleAndKeywords()` */
     char * name;
-    param_type_e param_type;
+    param_type_e param_type; static_assert(sizeof(param_type_e) == sizeof(int));  /* For `PyArg_ParseTupleAndKeywords()` */
     PyObject * mask_obj;
     char * unit = "";
     char * docstr = "";

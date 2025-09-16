@@ -921,6 +921,19 @@ static PyObject * _pycsh_get_str_value(PyObject * obj) {
 		return PyObject_Str(obj);
 }
 
+/**
+ * @brief Join an iterable[str] into a flat string
+ * 
+ * `('s', 't', 'r', 'i', 'n', 'g')` -> `"string"`
+ */
+static PyObject * _iter_to_str(PyObject * iterable) {
+	PyObject * const empty_string AUTO_DECREF = PyUnicode_FromString("");  /* Needed to ''.join(value_tuple) */
+	if (!empty_string) {
+		return NULL;
+	}
+	return PyUnicode_Join(empty_string, iterable);
+}
+
 /* Private interface for getting the value of an array parameter
    Increases the reference count of the returned tuple before returning.  */
 PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
@@ -955,20 +968,26 @@ PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int tim
 	}
 	
 	// We will populate this tuple with the values from the indexes.
-	PyObject * value_tuple = PyTuple_New(param->array_size);
+	PyObject * value_tuple AUTO_DECREF = PyTuple_New(param->array_size);
 
 	for (int i = 0; i < param->array_size; i++) {
 		PyObject * item = _pycsh_util_get_single(param, i, 0, host, timeout, retries, paramver, verbose);
 
 		if (item == NULL) {  // Something went wrong, probably a ConnectionError. Let's abandon ship.
-			Py_DECREF(value_tuple);
 			return NULL;
 		}
 		
 		PyTuple_SET_ITEM(value_tuple, i, item);
 	}
+
+	/* TODO Kevin: Not sure if we can str.join() on PARAM_TYPE_DATA. */
+	/* NOTE: By putting this here, we only ever return PARAM_TYPE_STRING as `"string"`,
+		never `('s', 't', 'r', 'i', 'n', 'g')`. but this is probably only good. */
+	if (param->type == PARAM_TYPE_STRING) {
+		return _iter_to_str(value_tuple);
+	}
 	
-	return value_tuple;
+	return Py_NewRef(value_tuple);
 }
 
 
@@ -1283,11 +1302,7 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 
 	/* TODO Kevin: Not sure if we can str.join() on PARAM_TYPE_DATA. */
 	if (param->type == PARAM_TYPE_STRING) {
-		PyObject * const empty_string AUTO_DECREF = PyUnicode_FromString("");  /* Needed to ''.join(value_tuple) */
-		if (!empty_string) {
-			return NULL;
-		}
-		return PyUnicode_Join(empty_string, value_tuple);
+		return _iter_to_str(value_tuple);
 	}
 
 	return Py_NewRef(value_tuple);
@@ -1340,6 +1355,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
         return NULL;
     }
 
+	Py_ssize_t iter_cnt = 0;
     while (1) {
         assert(!PyErr_Occurred());
         PyObject * value AUTO_DECREF = PyIter_Next(values_iter);
@@ -1354,12 +1370,13 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
         if (!value && !index) {
             break;
         } else if (!index) {
-            PyErr_SetString(PyExc_ValueError, "Received fewer indexes than values");
+            PyErr_Format(PyExc_ValueError, "Received fewer indexes than values (number of indices: %ld, param->array_size: %d)", iter_cnt, param->array_size);
             return NULL;
         } else if (!value) {
-            PyErr_SetString(PyExc_ValueError, "Received fewer values than indexes");
+            PyErr_Format(PyExc_ValueError, "Received fewer values than indexes (number of values: %ld, param->array_size: %d)", iter_cnt, param->array_size);
             return NULL;
         }
+		iter_cnt++;
 
         int offset = obj_to_index_in_range(index, param->array_size);
         if (offset < 0) {
