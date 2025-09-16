@@ -971,13 +971,17 @@ PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int tim
 	PyObject * value_tuple AUTO_DECREF = PyTuple_New(param->array_size);
 
 	for (int i = 0; i < param->array_size; i++) {
-		PyObject * item = _pycsh_util_get_single(param, i, 0, host, timeout, retries, paramver, verbose);
+		PyObject * item = _pycsh_util_get_single(param, i, 0, host, timeout, retries, paramver, -1);
 
 		if (item == NULL) {  // Something went wrong, probably a ConnectionError. Let's abandon ship.
 			return NULL;
 		}
 		
 		PyTuple_SET_ITEM(value_tuple, i, item);
+	}
+
+	if (verbose > -1) {
+		param_print(param, -1, NULL, 0, 2, 0);
 	}
 
 	/* TODO Kevin: Not sure if we can str.join() on PARAM_TYPE_DATA. */
@@ -1258,7 +1262,7 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 	// Pull the value for every index using a queue (if we're allowed to),
 	// instead of pulling them individually.
 	if (autopull && *param->node != 0) {
-        if (_pycsh_param_pull_single_indexes(param, indexes, autopull, host, timeout, retries, paramver, verbose)) {
+        if (_pycsh_param_pull_single_indexes(param, indexes, autopull, host, timeout, retries, paramver, -1)) {
             return NULL;
         }
 	}
@@ -1282,7 +1286,7 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
             return NULL;
         }
 
-		PyObject * value = _pycsh_util_get_single(param, offset, 0, host, timeout, retries, paramver, verbose);
+		PyObject * value = _pycsh_util_get_single(param, offset, 0, host, timeout, retries, paramver, -1);
 
 		if (value == NULL) {  // Something went wrong, probably a ConnectionError. Let's abandon ship.
 			return NULL;
@@ -1299,6 +1303,14 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
         PyErr_SetString(PyExc_RuntimeError, "Failed to resize tuple for ident replies");
         return NULL;
     }
+
+	/* When verbose, print only once,
+		whether or not we pull multiple indices,
+		or whether remote or not. */
+	/* NOTE: Not very nice that we assume what we should print here. */
+	if (verbose > -1) {
+		param_print(param, -1, NULL, 0, 2, 0);
+	}
 
 	/* TODO Kevin: Not sure if we can str.join() on PARAM_TYPE_DATA. */
 	if (param->type == PARAM_TYPE_STRING) {

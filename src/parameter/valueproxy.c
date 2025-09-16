@@ -274,7 +274,7 @@ static PyObject * ValueProxy_subscript(ValueProxyObject *self, PyObject *key) {
 			return NULL;
 		}
 
-		return _pycsh_util_get_single(self->param, c_idx, false, self->host, self->timeout, self->retries, self->paramver, self->verbose);
+		return _pycsh_util_get_single(self->param, c_idx, false, self->host, self->timeout, self->retries, self->paramver, -1);
     }
 
 	/* Check if `key` is iterable by simply getting an iterator for it. */
@@ -284,7 +284,7 @@ static PyObject * ValueProxy_subscript(ValueProxyObject *self, PyObject *key) {
 
     // Handle slicing
     if (PySlice_Check(key) || _iter) {
-        return _pycsh_util_get_array_indexes(self->param, key, false, self->host, self->timeout, self->retries, self->paramver, self->verbose);
+        return _pycsh_util_get_array_indexes(self->param, key, false, self->host, self->timeout, self->retries, self->paramver, -1);
     }
 
     PyErr_SetString(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None");
