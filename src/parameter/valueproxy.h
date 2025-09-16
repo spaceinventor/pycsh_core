@@ -18,7 +18,7 @@ typedef struct {
 	int timeout;
 	int retries;  // TODO Kevin: The 'retries' code was implemented rather hastily, consider refactoring of removing it. 
 	int paramver;
-	int remote;
+	bool remote : 1;
 	int verbose;
 
 	/* Cached Python value of the parameter,
@@ -33,4 +33,4 @@ typedef struct {
 extern PyTypeObject ValueProxyType;
 
 /* Create a ValueProxy object from a Parameter instance directly. */
-PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject * param);
+PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject * param, bool remote);

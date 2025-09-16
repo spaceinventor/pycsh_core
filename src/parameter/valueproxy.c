@@ -64,7 +64,7 @@ static PyObject * ValueProxy_str(ValueProxyObject *self) {
 
 
 /* Create a ValueProxy object from a Parameter instance directly. */
-PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject * param) {
+PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject * param, bool remote) {
 	assert(param);
 	if (param == NULL) {
  		return NULL;
@@ -86,6 +86,7 @@ PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject *
 	self->timeout = param->timeout;
 	self->retries = param->retries;
 	self->paramver = param->paramver;
+	self->remote = remote;
 
     return (PyObject *)self;
 }

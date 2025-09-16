@@ -365,7 +365,7 @@ PyObject * Parameter_get_value_array(ParameterObject * self, PyObject * args, Py
         return NULL;
     }
 
-	return pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	return pycsh_ValueProxy_from_Parameter(&ValueProxyType, self, remote);
 	//param_t * param = self->param;
 	//return _pycsh_util_get_array_indexes(param, indexes, remote, self->host, self->timeout, self->retries, self->paramver, verbose);
 }
