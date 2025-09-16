@@ -237,12 +237,12 @@ static PyObject * Parameter_gettype(ParameterObject *self, void *closure) {
 #ifdef OLD_PARAM_API_ERROR
 
 static PyObject * Parameter_get_oldvalue(ParameterObject *self, void *closure) {
-	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.remote_value` has been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
+	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
 	return NULL;
 }
 
 static int Parameter_set_oldvalue(ParameterObject *self, PyObject *value, void *closure) {
-	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.remote_value` has been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
+	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
 	return -1;
 }
 
@@ -250,7 +250,7 @@ static int Parameter_set_oldvalue(ParameterObject *self, PyObject *value, void *
 
 static PyObject * _Parameter_get_value(ParameterObject *self, int remote) {
 
-	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.remote_value` has been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`", 2) < 0) {
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`", 2) < 0) {
 		return NULL;
 	}
 
@@ -261,7 +261,7 @@ static PyObject * _Parameter_get_value(ParameterObject *self, int remote) {
 
 static int _Parameter_set_value(ParameterObject *self, PyObject *value, int remote) {
 
-	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.remote_value` has been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`", 2) < 0) {
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`", 2) < 0) {
 		return -2;
 	}
 
