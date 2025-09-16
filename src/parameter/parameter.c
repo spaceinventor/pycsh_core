@@ -295,14 +295,27 @@ static int Parameter_set_cached_value(ParameterObject *self, PyObject *value, vo
 
 
 PyObject * Parameter_get_value(ParameterObject * self, PyObject * args, PyObject * kwds) {
-	unsigned int index = INT_MIN;
+	
+	PyObject * py_index = NULL;
     int remote = true;
 	int verbose = pycsh_dfl_verbose;
 
     static char *kwlist[] = {"index", "remote", "verbose", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Ipi:get_value", kwlist, &index, &remote, &verbose)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Opi:get_value", kwlist, &py_index, &remote, &verbose)) {
         return NULL;
     }
+
+	unsigned int index = INT_MIN;
+	if (py_index == NULL || py_index == Py_None) {
+		/* Leave default index. */
+	} else if (PyLong_Check(py_index)) {
+		assert(!PyErr_Occurred());
+		index = PyLong_AsLong(py_index);
+		assert(!PyErr_Occurred());
+	} else {
+		PyErr_Format(PyExc_TypeError, "`index` must be `None` or `int`, not %s", py_index->ob_type->tp_name);
+		return NULL;
+	}
 
 	param_t *param = self->param;
 
