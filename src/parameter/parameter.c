@@ -286,9 +286,25 @@ static int Parameter_set_host(ParameterObject *self, PyObject *value, void *clos
 	return 0;
 }
 
-static PyObject * Parameter_gettype(ParameterObject *self, void *closure) {
-	Py_INCREF(self->type);
-	return (PyObject *)self->type;
+
+
+static PyObject * Parameter_get_py_type(ParameterObject *self, void *closure) {
+
+	return (PyObject *)Py_NewRef(self->type);
+}
+
+static PyObject * Parameter_gettype_deprecated(ParameterObject *self, void *closure) {
+
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "Use `.py_type` instead", 2) < 0) {
+		return NULL;
+	}
+
+	return Parameter_get_py_type(self, closure);
+}
+
+static PyObject * Parameter_get_c_type(ParameterObject *self, void *closure) {
+
+	return Py_BuildValue("i", self->param->type);
 }
 
 static PyObject * Parameter_get_oldvalue(ParameterObject *self, void *closure) {
@@ -467,7 +483,11 @@ static PyGetSetDef Parameter_getsetters[] = {
      "The help-text of the wrapped param_t c struct as a string or None.", NULL},
 	{"id", (getter)Parameter_get_id, NULL,
      "id of the parameter", NULL},
-	{"type", (getter)Parameter_gettype, NULL,
+	{"type", (getter)Parameter_gettype_deprecated, NULL,
+     "type of the parameter", NULL},
+	{"py_type", (getter)Parameter_get_py_type, NULL,
+     "type of the parameter", NULL},
+	{"c_type", (getter)Parameter_get_c_type, NULL,
      "type of the parameter", NULL},
 	{"mask", (getter)Parameter_getmask, NULL,
      "mask of the parameter", NULL},
