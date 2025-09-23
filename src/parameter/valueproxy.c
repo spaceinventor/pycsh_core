@@ -17,14 +17,55 @@
  */
 static PyObject * ValueProxy_eval_value(ValueProxyObject *self, PyObject* indexes) {
 	assert(self->param);
-	assert(self->param->array_size > 1);  /* Currently only support returning a tuple. */
 
 	/* return cached value if we already have one. */
-	if (!self->value) {
-		self->value = _pycsh_util_get_array_indexes(self->param, indexes, self->remote, self->host, self->timeout, self->retries, self->paramver, self->verbose);
+	if (self->value) {
+		return self->value;
 	}
 
-	return self->value;
+
+	/* Explicit `None` returns whole array when `self->array`, otherwise index 0 */
+	PyObject * _default_key AUTO_DECREF = NULL;
+	if (!indexes || Py_IsNone(indexes)) {
+		if (self->param->array_size > 1) {
+			indexes = _default_key = PySlice_New(NULL, NULL, NULL);
+		} else {
+			indexes = _default_key = PyLong_FromLong(0);
+		}
+		if (!indexes) {
+			return NULL;
+		}
+	}
+
+	// Handle integer index
+	if (PyLong_Check(indexes)) {
+		long idx_raw = PyLong_AsLong(indexes);
+		if (idx_raw == -1 && PyErr_Occurred()) {
+			return NULL;
+		}
+
+		//int c_idx = idx_raw;
+		//if (_pycsh_util_index(self->param->array_size, &c_idx) < 0) {
+		//	return NULL;
+		//}
+
+		self->value = _pycsh_util_get_single(self->param, idx_raw, self->remote, self->host, self->timeout, self->retries, self->paramver, self->verbose);
+		return self->value;
+	}
+
+	/* Check if `key` is iterable by simply getting an iterator for it. */
+	assert(!PyErr_Occurred());
+	PyObject *_iter AUTO_DECREF = PyObject_GetIter(indexes);
+	PyErr_Clear();
+
+	// Handle slicing
+	if (PySlice_Check(indexes) || _iter) {
+		self->value = _pycsh_util_get_array_indexes(self->param, indexes, self->remote, self->host, self->timeout, self->retries, self->paramver, self->verbose);
+		return self->value;
+	}
+
+	PyErr_SetString(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None");
+	return NULL;
 }
 
 
@@ -64,7 +105,7 @@ static PyObject * ValueProxy_str(ValueProxyObject *self) {
 
 
 /* Create a ValueProxy object from a Parameter instance directly. */
-PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject * param, bool remote) {
+PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject * param) {
 	assert(param);
 	if (param == NULL) {
  		return NULL;
@@ -86,7 +127,7 @@ PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject *
 	self->timeout = param->timeout;
 	self->retries = param->retries;
 	self->paramver = param->paramver;
-	self->remote = remote;
+	self->remote = true;
 
     return (PyObject *)self;
 }
@@ -239,56 +280,16 @@ static PyObject * ValueProxy_subscript(ValueProxyObject *self, PyObject *key) {
 	assert(key);
 	assert(self->param);
 
-	if (self->value) {
-		/* TODO Kevin: What to do if we already have a value.
+	if (!self->value && !ValueProxy_eval_value(self, key)) {
+		return NULL;
+	}
+
+	/* TODO Kevin: What to do if we already have a value.
 			- Error if the subscript length/index differs
 			- Error regardless
 			- Just return what we already have  (<-- currently)
 			- Or query a new value? */
-		return Py_NewRef(self->value);
-	}
-
-	assert(!self->value);  /* Don't query twice, with the default return above. */
-	if (!ValueProxy_eval_value(self, key)) {
-		return NULL;
-	}
-
-	/* Explicit `None` returns whole array */
-	PyObject * _default_key AUTO_DECREF = NULL;
-	if (Py_IsNone(key)) {
-		key = _default_key = PySlice_New(NULL, NULL, NULL);
-		if (!key) {
-            return NULL;
-        }
-	}
-
-    // Handle integer index
-    if (PyLong_Check(key)) {
-        long idx_raw = PyLong_AsLong(key);
-        if (idx_raw == -1 && PyErr_Occurred()) {
-            return NULL;
-		}
-
-		int c_idx = INT_MIN;
-		if (_pycsh_util_index(self->param->array_size, &c_idx) < 0) {
-			return NULL;
-		}
-
-		return _pycsh_util_get_single(self->param, c_idx, false, self->host, self->timeout, self->retries, self->paramver, -1);
-    }
-
-	/* Check if `key` is iterable by simply getting an iterator for it. */
-	assert(!PyErr_Occurred());
-	PyObject *_iter AUTO_DECREF = PyObject_GetIter(key);
-	PyErr_Clear();
-
-    // Handle slicing
-    if (PySlice_Check(key) || _iter) {
-        return _pycsh_util_get_array_indexes(self->param, key, false, self->host, self->timeout, self->retries, self->paramver, -1);
-    }
-
-    PyErr_SetString(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None");
-    return NULL;
+	return Py_NewRef(self->value);
 }
 
 /* Simply return the length of the parameter,
@@ -297,10 +298,46 @@ static Py_ssize_t ValueProxy_length(ValueProxyObject *self) {
 	return self->param->array_size;
 }
 
+int ValueProxy_ass_subscript(ValueProxyObject *self, PyObject *key, PyObject* value) {
+	if (value == NULL) {
+		PyErr_SetString(PyExc_TypeError, "Cannot delete Parameter.value");
+		return -1;
+	}
+
+	/* TODO Kevin: Handle `key == NULL` */
+	/* TODO Kevin: Probably check for `PARAM_TYPE_DATA` here as well? */
+	if (self->param->type == PARAM_TYPE_STRING) {
+		if (PyObject_IsTrue(key)) {
+			PyErr_SetString(PyExc_NotImplementedError, "Cannot set string parameters by index.");
+			return -1;
+		}
+		return (_pycsh_util_set_single(self->param, value, INT_MIN, self->host, self->timeout, self->retries, self->paramver, self->remote, self->verbose) < 0) ? -1 : 0;
+	}
+	
+	if (PyLong_Check(key)) {
+		return (_pycsh_util_set_single(self->param, value, PyLong_AS_LONG(key), self->host, self->timeout, self->retries, self->paramver, self->remote, self->verbose) < 0) ? -1 : 0;
+	}
+
+	/* Check if `key` is iterable by simply getting an iterator for it.
+		We could also `_pycsh_util_set_array_indexes()` raise a `TypeError`.
+		But we can make the message a bit clearer by doing it ourselves. */
+	assert(!PyErr_Occurred());
+	PyObject *_iter AUTO_DECREF = PyObject_GetIter(key);
+	PyErr_Clear();
+
+	if (_iter || Py_IsNone(key)) {
+		PyObject * AUTO_DECREF success = _pycsh_util_set_array_indexes(self->param, value, key, self->remote, self->host, self->timeout, self->retries, self->paramver, self->verbose);
+		return success ? 0 : -1;
+	}
+
+	PyErr_Format(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None, not `%s`", key->ob_type->tp_name);
+	return -1;
+}
+
 static PyMappingMethods ValueProxy_as_mapping = {
     .mp_length = (lenfunc)ValueProxy_length,
     .mp_subscript = (binaryfunc)ValueProxy_subscript,
-    .mp_ass_subscript = NULL            // for __setitem__ (future?)
+    .mp_ass_subscript = (objobjargproc)ValueProxy_ass_subscript,
 };
 
 /* 
@@ -325,6 +362,22 @@ static PyObject *ValueProxy_iter(ValueProxyObject *self) {
 	return PyObject_GetIter(self->value);
 }
 
+/**
+ * @brief Set attributes on `self` and return `self`, builder pattern like.
+ */
+static PyObject * ValueProxy_call(ValueProxyObject *self, PyObject *args, PyObject *kwds) {
+	static char *kwlist[] = {"host", "timeout", "retries", "paramver", "remote", "verbose", NULL};
+ 
+	int remote = self->remote;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiiiii", kwlist, self->host, self->timeout, self->retries, self->paramver, remote, self->verbose)) {
+		return NULL;  // TypeError is thrown
+	}
+	self->remote = remote;  /* Bitfield */
+
+	return (PyObject*)self;
+}
+
 PyTypeObject ValueProxyType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "pycsh.Parameter",
@@ -343,5 +396,5 @@ PyTypeObject ValueProxyType = {
 	.tp_hash = (hashfunc)ValueProxy_hash,
 	/* TODO Kevin: Consider implementing `.__call__()` and change `Parameter.get_value_array` to a property,
 		that would allow the user to both `list(Parameter(<name>).get_value_array)` and list(Parameter(<name>).get_value_array(remote=True)) */
-	//.tp_call = ,
+	.tp_call = (PyCFunctionWithKeywords)ValueProxy_call,
 };

@@ -100,7 +100,7 @@ PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int tim
 	which will be iterated to map out specific indexes to retrieve/return. */
 PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose);
 
-PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose);
+PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyObject * indexes, int autopush, int host, int timeout, int retries, int paramver, int verbose);
 
 /* Private interface for setting the value of a normal parameter. 
    Use INT_MIN as no offset. */

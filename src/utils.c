@@ -1321,25 +1321,23 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 }
 
 
-PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyObject * indexes, int autopush, int host, int timeout, int retries, int paramver, int verbose) {
 
     assert(param);
     assert(values);
 
-    PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
-    if (!indexes || indexes == Py_None) {
+    PyObject * _indexes_newref AUTO_DECREF = NULL;  /* Used for reference counting.*/
+    if (!indexes || Py_IsNone(indexes)) {
         /* Default to setting the entire parameter. */
-        indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
+        indexes = _indexes_newref = PySlice_New(NULL, NULL, NULL);
 		if (!indexes) {
 			return NULL;
 		}
     }
+	
+	if (PySlice_Check(indexes)) {  /* Make slices iterable by converting to iterables. */
 
-	/* Make slices iterable by converting to iterables. */
-	PyObject * _default_range AUTO_DECREF = NULL;  /* Used for reference counting.*/
-	if (PySlice_Check(indexes)) {
-
-		indexes = _default_range = _slice_to_range(indexes, param->array_size, NULL);
+		indexes = _indexes_newref = _slice_to_range(indexes, param->array_size, NULL);
 
 		/* NOTE: No check for `whole_range`. Use `Parameter.set_value()` to set the entire array with 1 value. */
 
@@ -1356,12 +1354,12 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 
-    PyObject *values_iter AUTO_DECREF = PyObject_GetIter(values);
+    PyObject * const values_iter AUTO_DECREF = PyObject_GetIter(values);
     if (!values_iter) {
         assert(PyErr_Occurred());
-        return NULL;
+		PyErr_Clear();
     }
-    PyObject *indexes_iter AUTO_DECREF = PyObject_GetIter(indexes);
+    PyObject * const indexes_iter AUTO_DECREF = PyObject_GetIter(indexes);
     if (!indexes_iter) {
         assert(PyErr_Occurred());
         return NULL;
@@ -1370,11 +1368,11 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 	Py_ssize_t iter_cnt = 0;
     while (1) {
         assert(!PyErr_Occurred());
-        PyObject * value AUTO_DECREF = PyIter_Next(values_iter);
+        PyObject * const value AUTO_DECREF = values_iter ? PyIter_Next(values_iter) : Py_NewRef(values);
         if (PyErr_Occurred()) {
             return NULL;
         }
-        PyObject * index AUTO_DECREF = PyIter_Next(indexes_iter);
+        PyObject * const index AUTO_DECREF = PyIter_Next(indexes_iter);
         if (PyErr_Occurred()) {
             return NULL;
         }
@@ -1382,6 +1380,9 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
         if (!value && !index) {
             break;
         } else if (!index) {
+			if (!values_iter) {
+				break;  /* non-iterable value specified, don't require matching lengths. */
+			}
             PyErr_Format(PyExc_ValueError, "Received fewer indexes than values (number of indices: %ld, param->array_size: %d)", iter_cnt, param->array_size);
             return NULL;
         } else if (!value) {

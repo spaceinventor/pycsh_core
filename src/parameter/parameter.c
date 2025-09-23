@@ -85,6 +85,7 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const
 		assert(PyDict_GetItem((PyObject*)param_callback_dict, key) == NULL);
 		int set_res = PyDict_SetItem((PyObject*)param_callback_dict, key, (PyObject*)self);
 		assert(set_res == 0);  // Allows the param_t callback to find the corresponding ParameterObject.
+		(void)set_res;
 		assert(PyDict_GetItem((PyObject*)param_callback_dict, key) != NULL);
 		assert(!PyErr_Occurred());
 
@@ -294,6 +295,22 @@ static int Parameter_set_cached_value(ParameterObject *self, PyObject *value, vo
 #endif  /* OLD_PARAM_API_ERROR */
 
 
+static PyObject * Parameter_get_valueproxy(ParameterObject *self, void *closure) {
+	/* Default to remote, user can override by calling the ValueProxy, i.e: `.value_index(remote=False)[0]` */
+	return pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+}
+
+static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void *closure) {
+
+	ValueProxyObject * const value_proxy = (ValueProxyObject*)pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	if (!value_proxy) {
+		return -1;
+	}
+	return ValueProxy_ass_subscript(value_proxy, Py_None, value);
+}
+
+
+#if 0
 PyObject * Parameter_get_value(ParameterObject * self, PyObject * args, PyObject * kwds) {
 	
 	PyObject * py_index = NULL;
@@ -386,7 +403,7 @@ PyObject * Parameter_set_value_array(ParameterObject * self, PyObject * args, Py
 	param_t * param = self->param;
 	return _pycsh_util_set_array_indexes(param, values, indexes, remote, self->host, self->timeout, self->retries, self->paramver, verbose);
 }
-
+#endif
 
 
 static PyObject * Parameter_is_vmem(ParameterObject *self, void *closure) {
@@ -612,6 +629,10 @@ static PyGetSetDef Parameter_getsetters[] = {
 	{"cached_value", (getter)Parameter_get_cached_value, (setter)Parameter_set_cached_value,
      "get/set the cached value of the parameter", NULL},
 #endif  /* OLD_PARAM_API_ERROR */
+
+	{"value", (getter)Parameter_get_valueproxy, (setter)Parameter_set_valueproxy,
+     "get/set the remote/cached value of the parameter", NULL},
+
 	{"is_vmem", (getter)Parameter_is_vmem, NULL,
      "whether the parameter is a vmem parameter", NULL},
 	{"storage_type", (getter)Parameter_get_storage_type, NULL,
@@ -620,16 +641,11 @@ static PyGetSetDef Parameter_getsetters[] = {
      "timeout of the parameter", NULL},
 	{"retries", (getter)Parameter_get_retries, (setter)Parameter_set_retries,
      "available retries of the parameter", NULL},
-
-	/* TODO Kevin: Consider making `get_value_array` a property,
-		but then `ValueProxy` should probably implement `.__call__()` to reconfigure attributes. */
-	/*{"get_value_array", (getter)Parameter_get_value_array, NULL, 
-     PyDoc_STR("Always return an iterable from the specified sequence. By default return the whole parameter. "\
-        "Examples for the following parameter `set index_array [0 1 2 3 4 5 6 7]`:"), NULL},*/
 #endif
     {NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
+#if 0
 static PyMethodDef Parameter_methods[] = {
     {"get_value", (PyCFunction)Parameter_get_value, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Returns the value of a single index, so the result will not be iterable (with the exception of string parameters, "\
 		"which always returns the whole string, ignoring the `index` argument).")},
@@ -639,6 +655,7 @@ static PyMethodDef Parameter_methods[] = {
     {"set_value_array", (PyCFunction)Parameter_set_value_array, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Sets the local cached value of the parameter.")},
     {NULL, NULL, 0, NULL}
 };
+#endif
 
 PyTypeObject ParameterType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -652,7 +669,7 @@ PyTypeObject ParameterType = {
 	.tp_getset = Parameter_getsetters,
 	// .tp_members = Parameter_members,
 	.tp_as_mapping = &ParameterArray_as_mapping,
-	.tp_methods = Parameter_methods,
+	//.tp_methods = Parameter_methods,
 	.tp_str = (reprfunc)Parameter_str,
 	.tp_richcompare = (richcmpfunc)Parameter_richcompare,
 	.tp_hash = (hashfunc)Parameter_hash,
