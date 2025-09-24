@@ -628,7 +628,11 @@ static int pycsh_param_pull_queue(param_queue_t *queue, param_t *params, unsigne
 }
 
 
-static int pycsh_param_push_queue(param_queue_t *queue, int prio, int verbose, int host, int timeout, uint32_t hwid, bool ack_with_pull) {
+/**
+ * @param ack_with_pull_params If specified, doubles as the `ack_with_pull` boolean.
+ * 	It should then be a list of parameters that the remote is expected to ack with (typically the parameters in `queue`).
+ */
+static int pycsh_param_push_queue(param_queue_t *queue, int prio, int verbose, int host, int timeout, uint32_t hwid, param_list_t * ack_with_pull_params) {
 
 	if ((queue == NULL) || (queue->used == 0))
 		return 0;
@@ -646,7 +650,7 @@ static int pycsh_param_push_queue(param_queue_t *queue, int prio, int verbose, i
 	packet->data[1] = 0;
 	param_transaction_callback_f cb = NULL;
 
-	if (ack_with_pull) {
+	if (ack_with_pull_params) {
 		packet->data[1] = 1;
 		cb = pycsh_param_transaction_callback_pull;
 	} else if (timeout == 0) {
@@ -668,14 +672,14 @@ static int pycsh_param_push_queue(param_queue_t *queue, int prio, int verbose, i
 
 	}
 
-	int result = param_transaction(packet, host, timeout, cb, verbose, queue->version, NULL);
+	int result = param_transaction(packet, host, timeout, cb, verbose, queue->version, ack_with_pull_params);
 
 	if (result < 0) {
 		printf("push queue error\n");
 		return -1;
 	}
 
-	if(!ack_with_pull) {
+	if(!ack_with_pull_params) {
         /* TODO Kevin: This will nok work with PyCSH parameters outside of the list. */
 		param_queue_apply(queue, 0, host);
 	}
@@ -1401,16 +1405,16 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 		}
     }
 
+	param_list_t param_list = {
+		.param_arr = &param,
+		.cnt = 1
+	};
     if (host != 0) {
-		if (pycsh_param_push_queue(&queue, 1, verbose, host, timeout, 0, true) < 0) {  // TODO Kevin: We should probably have a parameter for hwid here.
+		if (pycsh_param_push_queue(&queue, 1, verbose, host, timeout, 0, &param_list) < 0) {  // TODO Kevin: We should probably have a parameter for hwid here.
 			PyErr_Format(PyExc_ConnectionError, "No response from node %d", *param->node);
 			return NULL;
 		}
 	} else {
-        param_list_t param_list = {
-            .param_arr = &param,
-            .cnt = 1
-        };
         /* TODO Kevin: is `host` the correct from node here? */
         pycsh_param_queue_apply_listless(&queue, &param_list, host, false);
     }

@@ -307,7 +307,7 @@ int ValueProxy_ass_subscript(ValueProxyObject *self, PyObject *key, PyObject* va
 	/* TODO Kevin: Handle `key == NULL` */
 	/* TODO Kevin: Probably check for `PARAM_TYPE_DATA` here as well? */
 	if (self->param->type == PARAM_TYPE_STRING) {
-		if (PyObject_IsTrue(key)) {
+		if (PyObject_IsTrue(key)) {  /* If `key` is not `None|0|[]` */
 			PyErr_SetString(PyExc_NotImplementedError, "Cannot set string parameters by index.");
 			return -1;
 		}
@@ -370,7 +370,7 @@ static PyObject * ValueProxy_call(ValueProxyObject *self, PyObject *args, PyObje
  
 	int remote = self->remote;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiiiii", kwlist, self->host, self->timeout, self->retries, self->paramver, remote, self->verbose)) {
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiiiii:ValueProxy.__call__", kwlist, self->host, self->timeout, self->retries, self->paramver, remote, self->verbose)) {
 		return NULL;  // TypeError is thrown
 	}
 	self->remote = remote;  /* Bitfield */

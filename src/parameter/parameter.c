@@ -268,7 +268,7 @@ static int Parameter_set_oldvalue(ParameterObject *self, PyObject *value, void *
 
 static PyObject * _Parameter_get_value(ParameterObject *self, int remote) {
 
-	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`", 2) < 0) {
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
 		return NULL;
 	}
 
@@ -279,7 +279,7 @@ static PyObject * _Parameter_get_value(ParameterObject *self, int remote) {
 
 static int _Parameter_set_value(ParameterObject *self, PyObject *value, int remote) {
 
-	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`", 2) < 0) {
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
 		return -2;
 	}
 
@@ -326,101 +326,6 @@ static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void
 	return ValueProxy_ass_subscript(value_proxy, Py_None, value);
 }
 
-
-#if 0
-PyObject * Parameter_get_value(ParameterObject * self, PyObject * args, PyObject * kwds) {
-	
-	PyObject * py_index = NULL;
-    int remote = true;
-	int verbose = pycsh_dfl_verbose;
-
-    static char *kwlist[] = {"index", "remote", "verbose", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Opi:get_value", kwlist, &py_index, &remote, &verbose)) {
-        return NULL;
-    }
-
-	unsigned int index = INT_MIN;
-	if (py_index == NULL || py_index == Py_None) {
-		/* Leave default index. */
-	} else if (PyLong_Check(py_index)) {
-		assert(!PyErr_Occurred());
-		index = PyLong_AsLong(py_index);
-		assert(!PyErr_Occurred());
-	} else {
-		PyErr_Format(PyExc_TypeError, "`index` must be `None` or `int`, not %s", py_index->ob_type->tp_name);
-		return NULL;
-	}
-
-	param_t *param = self->param;
-
-	return _pycsh_util_get_single(param, index, remote, self->host, self->timeout, self->retries, self->paramver, verbose);
-}
-
-PyObject * Parameter_set_value(ParameterObject * self, PyObject * args, PyObject * kwds) {
-	PyObject * value;
-	PyObject * py_index = NULL;
-    int remote = true;
-	int verbose = pycsh_dfl_verbose;
-
-    static char *kwlist[] = {"value", "index", "remote", "verbose", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|Opi:set_value", kwlist, &value, &py_index, &remote, &verbose)) {
-        return NULL;
-    }
-
-	int index = INT_MIN;
-	if (py_index == NULL || py_index == Py_None) {
-		/* Leave default index. */
-	} else if (PyLong_Check(py_index)) {
-		assert(!PyErr_Occurred());
-		index = PyLong_AsLong(py_index);
-		assert(!PyErr_Occurred());
-	} else {
-		PyErr_Format(PyExc_TypeError, "`index` must be `None` or `int`, not %s", py_index->ob_type->tp_name);
-		return NULL;
-	}
-
-	param_t *param = self->param;
-
-	if (_pycsh_util_set_single(param, value, index, self->host, self->timeout, self->retries, self->paramver, remote, verbose) != 0) {
-		return NULL;
-	}
-
-	Py_RETURN_NONE;
-}
-
-PyObject * Parameter_get_value_array(ParameterObject * self, PyObject * args, PyObject * kwds) {
-
-	//PyObject * indexes = NULL;
-    int remote = true;
-	int verbose = pycsh_dfl_verbose;
-
-    static char *kwlist[] = {/*"indexes",*/ "remote", "verbose", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|pi:get_value_array", kwlist, /*&indexes,*/ &remote, &verbose)) {
-        return NULL;
-    }
-
-	return pycsh_ValueProxy_from_Parameter(&ValueProxyType, self, remote);
-	//param_t * param = self->param;
-	//return _pycsh_util_get_array_indexes(param, indexes, remote, self->host, self->timeout, self->retries, self->paramver, verbose);
-}
-
-PyObject * Parameter_set_value_array(ParameterObject * self, PyObject * args, PyObject * kwds) {
-
-	PyObject * values;
-	PyObject * indexes = NULL;
-    int remote = true;
-	int verbose = pycsh_dfl_verbose;
-
-    static char *kwlist[] = {"values", "indexes", "remote", "verbose", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|Opi:set_value_array", kwlist, &values, &indexes, &remote, &verbose)) {
-        return NULL;
-    }
-
-	
-	param_t * param = self->param;
-	return _pycsh_util_set_array_indexes(param, values, indexes, remote, self->host, self->timeout, self->retries, self->paramver, verbose);
-}
-#endif
 
 
 static PyObject * Parameter_is_vmem(ParameterObject *self, void *closure) {
