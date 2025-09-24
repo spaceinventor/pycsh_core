@@ -1335,11 +1335,10 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 		}
     }
 	
+	int whole_range = 0;
 	if (PySlice_Check(indexes)) {  /* Make slices iterable by converting to iterables. */
 
-		indexes = _indexes_newref = _slice_to_range(indexes, param->array_size, NULL);
-
-		/* NOTE: No check for `whole_range`. Use `Parameter.set_value()` to set the entire array with 1 value. */
+		indexes = _indexes_newref = _slice_to_range(indexes, param->array_size, &whole_range);
 
 		if (!indexes) {
 			return NULL;
@@ -1358,6 +1357,13 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
     if (!values_iter) {
         assert(PyErr_Occurred());
 		PyErr_Clear();
+		if (whole_range) {
+			/* Set whole array from 1 value without index, which should be more efficient. */
+			if (_pycsh_util_set_single(param, values, INT_MIN, host, timeout, retries, paramver, autopush, verbose) < 0) {
+				return NULL;
+			}
+			Py_RETURN_NONE;
+		}
     }
     PyObject * const indexes_iter AUTO_DECREF = PyObject_GetIter(indexes);
     if (!indexes_iter) {
