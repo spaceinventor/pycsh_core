@@ -270,7 +270,9 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
 	if (pycsh == NULL)
 		return NULL;
 
-    #define PyModule_AddObject_ErrCheck(_mod, _name, _obj)                                                      \
+#if 0
+	/* TODO Kevin: Find a good portable way to set exceptions with FromCause across 3.12 and 3.13. */
+	#define PyModule_AddObject_ErrCheck(_mod, _name, _obj)                                                      \
         if (NULL == _obj) {                                                                                     \
             if (PyErr_Occurred()) {                                                                             \
                 _PyErr_FormatFromCause(PyExc_ImportError, "%s is NULL", _name);                                 \
@@ -283,6 +285,17 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
             _PyErr_FormatFromCause(PyExc_ImportError, "Failed to add %s to %s", _name, _mod->ob_type->tp_name); \
             return NULL;                                                                                        \
         }
+#else
+    #define PyModule_AddObject_ErrCheck(_mod, _name, _obj)                                                      \
+        if (NULL == _obj) {                                                                                     \
+			PyErr_Format(PyExc_ImportError, "%s is NULL", _name);                                           	\
+            return NULL;                                                                                        \
+        }                                                                                                       \
+        if (PyModule_AddObject(_mod, _name, _obj) < 0) {                                                        \
+            PyErr_Format(PyExc_ImportError, "Failed to add %s to %s", _name, _mod->ob_type->tp_name); 			\
+            return NULL;                                                                                        \
+        }
+#endif
 
 	{  /* Exceptions */
 		PyExc_ProgramDiffError = PyErr_NewExceptionWithDoc("pycsh.ProgramDiffError", 
