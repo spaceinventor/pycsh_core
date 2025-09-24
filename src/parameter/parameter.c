@@ -231,8 +231,25 @@ static int Parameter_set_host(ParameterObject *self, PyObject *value, void *clos
 	return 0;
 }
 
-static PyObject * Parameter_gettype(ParameterObject *self, void *closure) {
+
+
+static PyObject * Parameter_get_py_type(ParameterObject *self, void *closure) {
+
 	return (PyObject *)Py_NewRef(self->type);
+}
+
+static PyObject * Parameter_gettype_deprecated(ParameterObject *self, void *closure) {
+
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "Use `.py_type` instead", 2) < 0) {
+		return NULL;
+	}
+
+	return Parameter_get_py_type(self, closure);
+}
+
+static PyObject * Parameter_get_c_type(ParameterObject *self, void *closure) {
+
+	return Py_BuildValue("i", self->param->type);
 }
 
 #ifdef OLD_PARAM_API_ERROR
@@ -598,49 +615,53 @@ static PyGetSetDef Parameter_getsetters[] = {
 
 #if 1  // param_t getsetters
 	{"name", (getter)Parameter_get_name, NULL,
-     "Returns the name of the wrapped param_t C struct.", NULL},
+     PyDoc_STR("Returns the name of the wrapped param_t C struct."), NULL},
     {"unit", (getter)Parameter_get_unit, NULL,
-     "The unit of the wrapped param_t c struct as a string or None.", NULL},
+     PyDoc_STR("The unit of the wrapped param_t c struct as a string or None."), NULL},
 	{"docstr", (getter)Parameter_get_docstr, NULL,
-     "The help-text of the wrapped param_t c struct as a string or None.", NULL},
+     PyDoc_STR("The help-text of the wrapped param_t c struct as a string or None."), NULL},
 	{"id", (getter)Parameter_get_id, NULL,
-     "id of the parameter", NULL},
-	{"type", (getter)Parameter_gettype, NULL,
-     "type of the parameter", NULL},
+     PyDoc_STR("id of the parameter"), NULL},
+	{"type", (getter)Parameter_gettype_deprecated, NULL,
+     PyDoc_STR("type of the parameter"), NULL},
+	{"py_type", (getter)Parameter_get_py_type, NULL,
+     PyDoc_STR("type of the parameter"), NULL},
+	{"c_type", (getter)Parameter_get_c_type, NULL,
+     PyDoc_STR("type of the parameter"), NULL},
 	{"mask", (getter)Parameter_getmask, NULL,
-     "mask of the parameter", NULL},
+     PyDoc_STR("mask of the parameter"), NULL},
 	{"timestamp", (getter)Parameter_gettimestamp, NULL,
-     "timestamp of the parameter", NULL},
+     PyDoc_STR("timestamp of the parameter"), NULL},
 	{"node", (getter)Parameter_get_node, (setter)Parameter_set_node,
-     "node of the parameter", NULL},
+     PyDoc_STR("node of the parameter"), NULL},
 #endif
 
 #if 1  // Parameter getsetters
 	{"host", (getter)Parameter_get_host, (setter)Parameter_set_host,
-     "host of the parameter", NULL},
+     PyDoc_STR("host of the parameter"), NULL},
 #ifdef OLD_PARAM_API_ERROR
 	{"remote_value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
-     "get/set the remote (and cached) value of the parameter", NULL},
+     PyDoc_STR("get/set the remote (and cached) value of the parameter"), NULL},
 	{"cached_value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
-     "get/set the cached value of the parameter", NULL},
+     PyDoc_STR("get/set the cached value of the parameter"), NULL},
 #else  /* OLD_PARAM_API_ERROR */
 	{"remote_value", (getter)Parameter_get_remote_value, (setter)Parameter_set_remote_value,
-     "get/set the remote (and cached) value of the parameter", NULL},
+     PyDoc_STR("get/set the remote (and cached) value of the parameter"), NULL},
 	{"cached_value", (getter)Parameter_get_cached_value, (setter)Parameter_set_cached_value,
-     "get/set the cached value of the parameter", NULL},
+     PyDoc_STR("get/set the cached value of the parameter"), NULL},
 #endif  /* OLD_PARAM_API_ERROR */
 
 	{"value", (getter)Parameter_get_valueproxy, (setter)Parameter_set_valueproxy,
-     "get/set the remote/cached value of the parameter", NULL},
+     PyDoc_STR("get/set the remote/cached value of the parameter"), NULL},
 
 	{"is_vmem", (getter)Parameter_is_vmem, NULL,
-     "whether the parameter is a vmem parameter", NULL},
+     PyDoc_STR("whether the parameter is a vmem parameter"), NULL},
 	{"storage_type", (getter)Parameter_get_storage_type, NULL,
-     "storage type of the parameter", NULL},
+     PyDoc_STR("storage type of the parameter"), NULL},
 	{"timeout", (getter)Parameter_get_timeout, (setter)Parameter_set_timeout,
-     "timeout of the parameter", NULL},
+     PyDoc_STR("timeout of the parameter"), NULL},
 	{"retries", (getter)Parameter_get_retries, (setter)Parameter_set_retries,
-     "available retries of the parameter", NULL},
+     PyDoc_STR("available retries of the parameter"), NULL},
 #endif
     {NULL, NULL, NULL, NULL}  /* Sentinel */
 };
