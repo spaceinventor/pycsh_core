@@ -325,7 +325,7 @@ int ValueProxy_ass_subscript(ValueProxyObject *self, PyObject *key, PyObject* va
 	PyObject *_iter AUTO_DECREF = PyObject_GetIter(key);
 	PyErr_Clear();
 
-	if (_iter || Py_IsNone(key)) {
+	if (_iter || Py_IsNone(key) || PySlice_Check(key)) {
 		PyObject * AUTO_DECREF success = _pycsh_util_set_array_indexes(self->param, value, key, self->remote, self->host, self->timeout, self->retries, self->paramver, self->verbose);
 		return success ? 0 : -1;
 	}
