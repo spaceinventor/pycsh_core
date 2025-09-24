@@ -362,6 +362,18 @@ static PyObject *ValueProxy_iter(ValueProxyObject *self) {
 	return PyObject_GetIter(self->value);
 }
 
+static PyObject *ValueProxy_eval_and_return(ValueProxyObject *self) {
+	if (!ValueProxy_eval_value(self, NULL)) {
+		return NULL;
+	}
+	return self->value;
+}
+
+static PyNumberMethods ValueProxy_as_number = {
+    .nb_int = (unaryfunc)ValueProxy_eval_and_return,
+    .nb_index = (unaryfunc)ValueProxy_eval_and_return,
+};
+
 /**
  * @brief Set attributes on `self` and return `self`, builder pattern like.
  */
@@ -380,8 +392,9 @@ static PyObject * ValueProxy_call(ValueProxyObject *self, PyObject *args, PyObje
 
 PyTypeObject ValueProxyType = {
     PyVarObject_HEAD_INIT(NULL, 0)
-    .tp_name = "pycsh.Parameter",
+    .tp_name = "pycsh.ValueProxy",
     .tp_doc = "Wrapper utility class for libparam parameters.",
+	.tp_as_number = &ValueProxy_as_number,
     .tp_basicsize = sizeof(ValueProxyObject),
     .tp_itemsize = 0,
 	.tp_iter = (getiterfunc)ValueProxy_iter,
