@@ -387,7 +387,7 @@ static PyObject * ValueProxy_call(ValueProxyObject *self, PyObject *args, PyObje
 	}
 	self->remote = remote;  /* Bitfield */
 
-	return (PyObject*)self;
+	return (PyObject*)Py_NewRef(self);
 }
 
 PyTypeObject ValueProxyType = {
