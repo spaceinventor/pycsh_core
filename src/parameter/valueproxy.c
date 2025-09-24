@@ -366,7 +366,7 @@ static PyObject *ValueProxy_eval_and_return(ValueProxyObject *self) {
 	if (!ValueProxy_eval_value(self, NULL)) {
 		return NULL;
 	}
-	return self->value;
+	return Py_NewRef(self->value);
 }
 
 static PyNumberMethods ValueProxy_as_number = {
@@ -382,7 +382,7 @@ static PyObject * ValueProxy_call(ValueProxyObject *self, PyObject *args, PyObje
  
 	int remote = self->remote;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "iiiiii:ValueProxy.__call__", kwlist, self->host, self->timeout, self->retries, self->paramver, remote, self->verbose)) {
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iiiiii:ValueProxy.__call__", kwlist, &self->host, &self->timeout, &self->retries, &self->paramver, &remote, &self->verbose)) {
 		return NULL;  // TypeError is thrown
 	}
 	self->remote = remote;  /* Bitfield */
