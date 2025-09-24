@@ -7,6 +7,9 @@
  *      Author: Kevin Wallentin Carlsen
  */
 
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
 #include <pycsh/parameter.h>
 
 #include "structmember.h"
@@ -16,6 +19,10 @@
 #include <pycsh/pycsh.h>
 #include "parameterarray.h"
 #include <pycsh/utils.h>
+
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#define  _PyLong_AsInt PyLong_AsInt
+#endif
 
 /* Maps param_t to its corresponding PythonParameter for use by C callbacks. */
 PyDictObject * param_callback_dict = NULL;
@@ -402,10 +409,6 @@ static PyObject * Parameter_gettimestamp(ParameterObject *self, void *closure) {
 static PyObject * Parameter_get_retries(ParameterObject *self, void *closure) {
 	return Py_BuildValue("i", self->retries);
 }
-
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
-#define  _PyLong_AsInt PyLong_AsInt
-#endif
 
 static int Parameter_set_retries(ParameterObject *self, PyObject *value, void *closure) {
 

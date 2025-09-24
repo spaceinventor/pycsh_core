@@ -7,11 +7,18 @@
  *      Author: Kevin Wallentin Carlsen
  */
 
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
 #include "parameterarray.h"
 
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 
+
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#define  _PyLong_AsInt PyLong_AsInt
+#endif
 
 static PyObject * ParameterArray_GetItem(ParameterObject *self, PyObject *item) {
 
