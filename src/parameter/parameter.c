@@ -264,57 +264,27 @@ static int Parameter_set_oldvalue(ParameterObject *self, PyObject *value, void *
 	return -1;
 }
 
-#else  /* OLD_PARAM_API_ERROR */
-
-static PyObject * _Parameter_get_value(ParameterObject *self, int remote) {
-
-	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
-		return NULL;
-	}
-
-	if (self->param->array_size > 1 && self->param->type != PARAM_TYPE_STRING)
-		return _pycsh_util_get_array(self->param, remote, self->host, self->timeout, self->retries, self->paramver, pycsh_dfl_verbose);
-	return _pycsh_util_get_single(self->param, INT_MIN, remote, self->host, self->timeout, self->retries, self->paramver, pycsh_dfl_verbose);
-}
-
-static int _Parameter_set_value(ParameterObject *self, PyObject *value, int remote) {
-
-	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
-		return -2;
-	}
-
-	if (value == NULL) {
-        PyErr_SetString(PyExc_TypeError, "Cannot delete the value attribute");
-        return -1;
-    }
-
-	if (self->param->array_size > 1 && self->param->type != PARAM_TYPE_STRING && self->param->type != PARAM_TYPE_DATA)  // Is array parameter
-		return _pycsh_util_set_array(self->param, value, self->host, self->timeout, self->retries, self->paramver, pycsh_dfl_verbose);
-	return _pycsh_util_set_single(self->param, value, INT_MIN, self->host, self->timeout, self->retries, self->paramver, remote, pycsh_dfl_verbose);  // Normal parameter
-}
-
-static PyObject * Parameter_get_remote_value(ParameterObject *self, void *closure) {
-	return _Parameter_get_value(self, 1);
-}
-
-static PyObject * Parameter_get_cached_value(ParameterObject *self, void *closure) {
-	return _Parameter_get_value(self, 0);
-}
-
-static int Parameter_set_remote_value(ParameterObject *self, PyObject *value, void *closure) {
-	return _Parameter_set_value(self, value, 1);
-}
-
-static int Parameter_set_cached_value(ParameterObject *self, PyObject *value, void *closure) {
-	return _Parameter_set_value(self, value, 0);
-}
-
 #endif  /* OLD_PARAM_API_ERROR */
 
 
 static PyObject * Parameter_get_valueproxy(ParameterObject *self, void *closure) {
 	/* Default to remote, user can override by calling the ValueProxy, i.e: `.value_index(remote=False)[0]` */
 	return pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+}
+
+static PyObject * Parameter_get_valueproxy_cached(ParameterObject *self, void *closure) {
+
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
+		return -2;
+	}
+
+	/* Default to remote, user can override by calling the ValueProxy, i.e: `.value_index(remote=False)[0]` */
+	ValueProxyObject * const value_proxy = (ValueProxyObject*)pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	if (!value_proxy) {
+		return NULL;
+	}
+	value_proxy->remote = false;
+	return value_proxy;  /* Already new reference */
 }
 
 static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void *closure) {
@@ -326,6 +296,19 @@ static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void
 	return ValueProxy_ass_subscript(value_proxy, Py_None, value);
 }
 
+static int Parameter_set_valueproxy_cached(ParameterObject *self, PyObject *value, void *closure) {
+
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
+		return -2;
+	}
+
+	ValueProxyObject * const value_proxy = (ValueProxyObject*)pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	if (!value_proxy) {
+		return -1;
+	}
+	value_proxy->remote = false;
+	return ValueProxy_ass_subscript(value_proxy, Py_None, value);
+}
 
 
 static PyObject * Parameter_is_vmem(ParameterObject *self, void *closure) {
@@ -550,9 +533,9 @@ static PyGetSetDef Parameter_getsetters[] = {
 	{"cached_value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
      PyDoc_STR("get/set the cached value of the parameter"), NULL},
 #else  /* OLD_PARAM_API_ERROR */
-	{"remote_value", (getter)Parameter_get_remote_value, (setter)Parameter_set_remote_value,
+	{"remote_value", (getter)Parameter_get_valueproxy, (setter)Parameter_set_valueproxy,
      PyDoc_STR("get/set the remote (and cached) value of the parameter"), NULL},
-	{"cached_value", (getter)Parameter_get_cached_value, (setter)Parameter_set_cached_value,
+	{"cached_value", (getter)Parameter_get_valueproxy_cached, (setter)Parameter_set_valueproxy_cached,
      PyDoc_STR("get/set the cached value of the parameter"), NULL},
 #endif  /* OLD_PARAM_API_ERROR */
 
