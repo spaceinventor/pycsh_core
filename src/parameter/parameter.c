@@ -275,7 +275,7 @@ static PyObject * Parameter_get_valueproxy(ParameterObject *self, void *closure)
 static PyObject * Parameter_get_valueproxy_cached(ParameterObject *self, void *closure) {
 
 	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
-		return -2;
+		return NULL;
 	}
 
 	/* Default to remote, user can override by calling the ValueProxy, i.e: `.value_index(remote=False)[0]` */
@@ -284,7 +284,7 @@ static PyObject * Parameter_get_valueproxy_cached(ParameterObject *self, void *c
 		return NULL;
 	}
 	value_proxy->remote = false;
-	return value_proxy;  /* Already new reference */
+	return (PyObject*)value_proxy;  /* Already new reference */
 }
 
 static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void *closure) {
@@ -299,7 +299,7 @@ static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void
 static int Parameter_set_valueproxy_cached(ParameterObject *self, PyObject *value, void *closure) {
 
 	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
-		return -2;
+		return -1;
 	}
 
 	ValueProxyObject * const value_proxy = (ValueProxyObject*)pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
