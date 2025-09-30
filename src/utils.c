@@ -1104,11 +1104,7 @@ static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, i
     }
 	PyObject *index;
 
-	void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
-	if (!queuebuffer) {
-		PyErr_NoMemory();
-		return -2;
-	}
+	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_GET, paramver);
 
@@ -1355,7 +1351,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 			const char* c_str = PyUnicode_AsUTF8(obj_str);
 			assert(c_str);
 			/* TODO Kevin: We can't really assume we're using ValueProxy here. Could be `pycsh.set()` in the future? */
-			PyErr_Format(PyExc_IndexError, "Use `[:]` to set all indices (of %s) from a single value (%s). i.e: `Parameter.value = 1` -> `Parameter.value[:] = 1`", param->name, c_str);
+			PyErr_Format(PyExc_IndexError, "Use `[:]` to set all indices (of `%s`) from a single value (%s). i.e: `Parameter.value = 1` -> `Parameter.value[:] = 1`", param->name, c_str);
 			return NULL;
 		}
     }
@@ -1378,11 +1374,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 		Py_RETURN_NONE;
 	}
 
-    void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
-	if (!queuebuffer) {
-		PyErr_NoMemory();
-		return NULL;
-	}
+    uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 
@@ -1547,12 +1539,20 @@ int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host
 
 	} else {  // Otherwise; set local cached value.
 
-		if (offset < 0 && param->type != PARAM_TYPE_STRING && param->type != PARAM_TYPE_DATA) {
-			for (int i = 0; i < param->array_size; i++)
-				param_set(param, i, valuebuf);
-		} else {
-			param_set(param, offset, valuebuf);
+		/* `param_set()` seems to have issues with PARAM_TYPE_STRING.
+			i.e: `set test_str hello` `set test_str hi` == `hillo` */
+		param_list_t param_list = {
+			.param_arr = &param,
+			.cnt = 1
+		};
+		uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
+		param_queue_t queue;
+		param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU - 2, 0, PARAM_QUEUE_TYPE_SET, paramver);
+		if (param_queue_add(&queue, param, offset, valuebuf) < 0) {
+			PyErr_SetString(PyExc_MemoryError, "Queue full");
+			return -4;
 		}
+		pycsh_param_queue_apply_listless(&queue, &param_list, host, false);
 
 		if (PyErr_Occurred()) {
 			/* If the exception came from the callback, we should already have chained unto it. */
@@ -1607,7 +1607,7 @@ int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout
 	//	with the global queue, but then we need to handle freeing the buffer.
 	// TODO Kevin: Also this queue is not used for local parameters (and therefore wasted).
 	//	Perhaps structure the function to avoid its unecessary instantiation.
-	void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
+	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 	
