@@ -872,6 +872,7 @@ static PyObject * _slice_to_range(PyObject * slice, int seqlen, int *whole_range
 	assert(slice);
 	if (!PySlice_Check(slice)) {
 		PyErr_Format(PyExc_TypeError, "`slice` argument must be slice, not %s", slice->ob_type->tp_name);
+		return NULL;
 	}
 
 	Py_ssize_t start, stop, step, slicelength;
@@ -1331,10 +1332,26 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
         /* Default to setting the entire parameter. */
         indexes = _indexes_newref = PySlice_New(NULL, NULL, NULL);
 		if (!indexes) {
+			assert(PyErr_Occurred());
 			return NULL;
 		}
     }
-	
+
+	PyObject * const values_iter AUTO_DECREF = PyObject_GetIter(values);
+    if (!values_iter) {
+        assert(PyErr_Occurred());
+		PyErr_Clear();
+		if (_indexes_newref)  {  /* No index specified. */
+			PyObject * obj_str AUTO_DECREF = PyObject_Str(values);
+			assert(obj_str);
+			const char* c_str = PyUnicode_AsUTF8(obj_str);
+			assert(c_str);
+			/* TODO Kevin: We can't really assume we're using ValueProxy here. Could be `pycsh.set()` in the future? */
+			PyErr_Format(PyExc_IndexError, "Use `[:]` to set all indices (of %s) from a single value (%s). i.e: `Parameter.value = 1` -> `Parameter.value[:] = 1`", param->name, c_str);
+			return NULL;
+		}
+    }
+
 	int whole_range = 0;
 	if (PySlice_Check(indexes)) {  /* Make slices iterable by converting to iterables. */
 
@@ -1345,6 +1362,14 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 		}
 	}
 
+	if (!values_iter && whole_range) {
+		/* Set whole array from 1 value without index, which should be more efficient. */
+		if (_pycsh_util_set_single(param, values, INT_MIN, host, timeout, retries, paramver, autopush, verbose) < 0) {
+			return NULL;
+		}
+		Py_RETURN_NONE;
+	}
+
     void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
 	if (!queuebuffer) {
 		PyErr_NoMemory();
@@ -1353,18 +1378,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 
-    PyObject * const values_iter AUTO_DECREF = PyObject_GetIter(values);
-    if (!values_iter) {
-        assert(PyErr_Occurred());
-		PyErr_Clear();
-		if (whole_range) {
-			/* Set whole array from 1 value without index, which should be more efficient. */
-			if (_pycsh_util_set_single(param, values, INT_MIN, host, timeout, retries, paramver, autopush, verbose) < 0) {
-				return NULL;
-			}
-			Py_RETURN_NONE;
-		}
-    }
+    
     PyObject * const indexes_iter AUTO_DECREF = PyObject_GetIter(indexes);
     if (!indexes_iter) {
         assert(PyErr_Occurred());
