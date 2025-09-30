@@ -967,7 +967,15 @@ PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int tim
 			return 0;
 		}
 	}
-	
+
+	/* TODO Kevin: How to PARAM_TYPE_DATA? */
+	/* PARAM_TYPE_STRING only gets up to first `\0` */
+	if (param->type == PARAM_TYPE_STRING) {
+		char buf[param->array_size];
+		param_get_string(param, &buf, param->array_size);
+		return PyUnicode_FromStringAndSize(buf, strnlen(buf, param->array_size));
+	}
+
 	// We will populate this tuple with the values from the indexes.
 	PyObject * value_tuple AUTO_DECREF = PyTuple_New(param->array_size);
 
