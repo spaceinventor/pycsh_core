@@ -886,12 +886,62 @@ static PyObject * _slice_to_range(PyObject * slice, int seqlen, int *whole_range
 			/* TODO Kevin: Pretty annoying that we may waste the returned `range()` object here,
 				but oh well. */
 			*whole_range = 1;
-		} else {
-			*whole_range = 0;
 		}
 	}
 
 	return PyObject_CallFunction((PyObject *)&PyRange_Type, "nnn", start, stop, step);
+}
+
+static PyObject * _safePyObject_GetIter(PyObject *obj, bool decref) {
+
+	if (!obj) {
+		return NULL;
+	}
+
+	PyObject * _obj_decref AUTO_DECREF = NULL;
+	if (decref) {
+		_obj_decref = obj;
+	}
+
+	return PyObject_GetIter(obj);
+}
+
+
+/**
+ * 
+ * @param whole_range_out Will be set to 1 if indexes cover the entirety of seqlen, otherwise left untouched.
+ */
+static PyObject * _indices_to_iterator(PyObject *indexes, int * whole_range_out, int seqlen) {
+	/* Used for reference counting.
+		'indexes' is always a borrowed reference.
+		So we create this other variable for when we're creating a new reference,
+		so we can always `Py_DecRef()` it */
+    PyObject * _newref_slice AUTO_DECREF = NULL;  
+    if (!indexes || indexes == Py_None) {
+        /* Default to setting the entire parameter. */
+		*whole_range_out = 1;
+        indexes = _newref_slice = PySlice_New(NULL, NULL, NULL);
+        if (!indexes) {
+            return NULL;
+        }
+    }
+
+	/* Make slices iterable by converting to iterables. */
+	if (PySlice_Check(indexes)) {
+
+		/* TODO Kevin: Check handling of PARAM_TYPE_DATA */
+		return _safePyObject_GetIter(_slice_to_range(indexes, seqlen, whole_range_out), true);
+	}
+
+	if (PyLong_Check(indexes)) {
+		return _safePyObject_GetIter(PyTuple_Pack(1, indexes), true);
+	}
+
+	/* Try converting raw object to iterator. */
+	return _safePyObject_GetIter(indexes, false);
+
+	//PyErr_Format(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None, not `%s`", indexes->ob_type->tp_name);
+	//return NULL;
 }
 
 static PyObject * _pycsh_get_str_value(PyObject * obj) {
@@ -1068,47 +1118,28 @@ static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, i
 		return (pull_res == NULL) ? -1 : 0;
 	}
 
-    PyObject * _default_indexes AUTO_DECREF = NULL;  /* Used for reference counting.*/
-    if (!indexes || indexes == Py_None) {
-        /* Default to setting the entire parameter. */
-        indexes = _default_indexes = PySlice_New(NULL, NULL, NULL);
-        if (!indexes) {
-            return -8;
-        }
-    }
+	int whole_range = 0;
+	PyObject * const index_iter = _indices_to_iterator(indexes, &whole_range, param->array_size);
 
-	/* Make slices iterable by converting to iterables. */
-	PyObject * _default_range AUTO_DECREF = NULL;  /* Used for reference counting.*/
-	if (PySlice_Check(indexes)) {
-
-		int whole_range = 0;
-		indexes = _default_range = _slice_to_range(indexes, param->array_size, &whole_range);
-
-		if (whole_range) {
-			PyErr_Clear();  /* we don't care if we couldn't crate the `range()` objects here. */
-			/* Return whole array, which may be more efficient. */
-			/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
-			PyObject *pull_res AUTO_DECREF = _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
-			return (pull_res == NULL) ? -1 : 0;
-		}
-
-		if (!indexes) {
-			return -9;
-		}
+	if (whole_range) {
+		PyErr_Clear();  /* we don't care if we couldn't crate the `range()` objects here. */
+		/* Return whole array, which may be more efficient. */
+		/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
+		PyObject * const pull_res AUTO_DECREF = _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+		return (pull_res == NULL) ? -1 : 0;
 	}
 
-    PyObject *iter AUTO_DECREF = PyObject_GetIter(indexes);
-    if (!iter) {
-        assert(PyErr_Occurred());
-        return -7;
-    }
+	if (!index_iter) {
+		return -9;
+	}
+
 	PyObject *index;
 
 	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_GET, paramver);
 
-	while ((index = PyIter_Next(iter)) != NULL) {
+	while ((index = PyIter_Next(index_iter)) != NULL) {
         PyObject * _index AUTO_DECREF = index;
 
         int offset = obj_to_index_in_range(index, param->array_size);
@@ -1201,81 +1232,17 @@ static PyObject* slice_c_string(const char* c_str, Py_ssize_t c_len, PyObject* s
 #endif
 
 
-/* Similar to `_pycsh_util_get_array()`, but accepts a `PyObject * indexes`,
-	which will be iterated to map out specific indexes to retrieve/return. */
-PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+static PyObject * _index_zip(PyObject * value_array, PyObject *iter, int verbose, param_t * param) {
 
-	assert(param);
-	if (param->type == PARAM_TYPE_DATA) {
-		/* No slicing support for `PARAM_TYPE_DATA`.
-			just pull the whole parameter.
-			We may consider returning slices in the future,
-			even if we still have to pull all of it. */
-		return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
-	}
-
-	/* Used for reference counting.
-		'indexes' is always a borrowed reference.
-		So we create this other variable for when we're creating a new reference,
-		so we can always `Py_DecRef()` it */
-    PyObject * _newref_indexes AUTO_DECREF = NULL;  
-    if (!indexes || indexes == Py_None) {
-        /* Default to setting the entire parameter. */
-        indexes = _newref_indexes = PySlice_New(NULL, NULL, NULL);
-        if (!indexes) {
-            return NULL;
-        }
-    }
-
-	/* Make slices iterable by converting to iterables. */
-	if (PySlice_Check(indexes)) {
-
-		/* TODO Kevin: Check handling of PARAM_TYPE_DATA */
-
-		int whole_range = 0;
-		indexes = _newref_indexes = _slice_to_range(indexes, param->array_size, &whole_range);
-
-		if (whole_range) {
-			PyErr_Clear();  /* we don't care if we couldn't crate the `range()` objects here. */
-			/* Return whole array, which may be more efficient. */
-			/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
-			return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
-		}
-
-		if (!indexes) {
-			return NULL;
-		}
-	}
-
-	if (PyLong_Check(indexes)) {
-		indexes = _newref_indexes = PyTuple_Pack(1, indexes);
-		if (!indexes) {
-			return NULL;
-		}
-	}
-	
-	assert(!PyErr_Occurred());
-	PyObject *iter AUTO_DECREF = PyObject_GetIter(indexes);
-	//if (!PyIter_Check(indexes)) {
-	if (!iter) {
-		PyErr_Clear();
-		PyErr_SetString(PyExc_TypeError, "`indexes` must be iterable");
+	Py_ssize_t value_len = PyObject_Length(value_array);
+	if (value_len < 0) {
 		return NULL;
-	}
-
-
-	// Pull the value for every index using a queue (if we're allowed to),
-	// instead of pulling them individually.
-	if (autopull && *param->node != 0) {
-        if (_pycsh_param_pull_single_indexes(param, indexes, autopull, host, timeout, retries, paramver, -1)) {
-            return NULL;
-        }
 	}
 
 	/* We will populate this tuple with specified slice of values from the indexes.
         It cannot possibly be larger than the parameter itself. So we shrink it from that. */
-	PyObject * value_tuple AUTO_DECREF = PyTuple_New(param->array_size);
-
+	//PyObject * value_tuple AUTO_DECREF = PyTuple_New(param->array_size);
+	PyObject * value_tuple AUTO_DECREF = PyTuple_New(value_len);
     if (!value_tuple) {
         return PyErr_NoMemory();
     }
@@ -1285,15 +1252,20 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 	while ((index = PyIter_Next(iter)) != NULL) {
         PyObject * _index AUTO_DECREF = index;  /* `Py_DecRef()` each element */
 
-        int offset = obj_to_index_in_range(index, param->array_size);
+        int offset = obj_to_index_in_range(index, value_len);
         if (offset < 0) {
             assert(PyErr_Occurred());
             return NULL;
         }
 
-		PyObject * value = _pycsh_util_get_single(param, offset, 0, host, timeout, retries, paramver, -1);
+		// if (param->type == PARAM_TYPE_STRING && ((char)param_get_uint8_array(param, offset)) == '\0') {
+		// 	// PyErr_Format(PyExc_IndexError, "Index %d out of bounds of returned string %s", offset);
+		// 	// return NULL;
+		// 	break;
+		// }
 
-		if (value == NULL) {  // Something went wrong, probably a ConnectionError. Let's abandon ship.
+		PyObject * value = PyObject_GetItem(value_array, index);
+		if (!value) {
 			return NULL;
 		}
 
@@ -1323,6 +1295,61 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int
 	}
 
 	return Py_NewRef(value_tuple);
+}
+
+
+/* Similar to `_pycsh_util_get_array()`, but accepts a `PyObject * indexes`,
+	which will be iterated to map out specific indexes to retrieve/return. */
+PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indicies_raw, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+
+	assert(param);
+	if (param->type == PARAM_TYPE_DATA) {
+		/* No slicing support for `PARAM_TYPE_DATA`.
+			just pull the whole parameter.
+			We may consider returning slices in the future,
+			even if we still have to pull all of it. */
+		return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+	}
+
+	int whole_range = 0;
+	PyObject * const index_iter = _indices_to_iterator(indicies_raw, &whole_range, param->array_size);
+	if (whole_range) {
+		PyErr_Clear();  /* we don't care if we couldn't crate the `range()` objects here. */
+		/* Return whole array, which may be more efficient. */
+		/* TODO Kevin: We may consider removing `_pycsh_util_get_array()` in the future. */
+		return _pycsh_util_get_array(param, autopull, host, timeout, retries, paramver, verbose);
+	}
+
+	if (!index_iter) {
+		return NULL;
+	}
+	
+	// Pull the value for every index using a queue (if we're allowed to),
+	// instead of pulling them individually.
+	if (autopull && *param->node != 0) {
+        if (_pycsh_param_pull_single_indexes(param, indicies_raw, autopull, host, timeout, retries, paramver, -1)) {
+            return NULL;
+        }
+	}
+
+	PyObject * const value_array = _pycsh_util_get_array(param, false, host, timeout, retries, paramver, -1);
+	if (value_array == NULL) {  // Something went wrong, probably a ConnectionError. Let's abandon ship.
+		return NULL;
+	}
+
+	if (param->type == PARAM_TYPE_STRING) {  /* Exclude trailing NULL bytes from string parameter indexation. i.e "123\0\0"[-1] == 3 (not '\0') */
+		Py_ssize_t str_len = PyObject_Length(value_array);
+		if (str_len < 0) {
+			return NULL;
+		}
+		PyObject * index_iter_str = _indices_to_iterator(indicies_raw, &whole_range, str_len);
+		if (!index_iter_str) {
+			return NULL;
+		}
+		return _index_zip(value_array, index_iter_str, verbose, param);
+	}
+
+	return _index_zip(value_array, index_iter, verbose, param);
 }
 
 
