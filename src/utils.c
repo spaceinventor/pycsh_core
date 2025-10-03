@@ -814,6 +814,11 @@ PyObject * _pycsh_util_get_single(param_t *param, int offset, int autopull, int 
 		case PARAM_TYPE_STRING: {
 			char buf[param->array_size];
 			param_get_string(param, &buf, param->array_size);
+			if (buf[offset] == '\0') {  /* TODO Kevin: Consider whether we should use `offset >= strnlen(buf, param->array_size)` here instead. */
+				/* I don't much like raising an error here, but it's how we handle it in `_pycsh_util_get_array_indexes()`. */
+				PyErr_Format(PyExc_IndexError, "IndexError: Index (%d) out of range of parameter ('%s@%d') value", offset, param->name, *param->node);
+				return NULL;
+			}
 			if (offset != -1) {
 				char charstrbuf[] = {buf[offset]};
 				return Py_BuildValue("s", charstrbuf);
