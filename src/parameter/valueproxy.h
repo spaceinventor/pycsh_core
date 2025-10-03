@@ -35,5 +35,8 @@ extern PyTypeObject ValueProxyType;
 /* Create a ValueProxy object from a Parameter instance directly. */
 PyObject * pycsh_ValueProxy_from_Parameter(PyTypeObject *type, ParameterObject * param);
 
+/* Can be used to get the value of a `Parameter`, using a `ValueProxy`. */
+PyObject * ValueProxy_subscript(ValueProxyObject *self, PyObject *key);
+
 /* Can be used to set the value of a `Parameter`, using a `ValueProxy`. */
 int ValueProxy_ass_subscript(ValueProxyObject *self, PyObject *key, PyObject* value);

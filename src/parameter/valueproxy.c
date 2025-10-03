@@ -275,7 +275,7 @@ static void ValueProxy_dealloc(ValueProxyObject *self) {
     baseclass->tp_dealloc((PyObject*)self);
 }
 
-static PyObject * ValueProxy_subscript(ValueProxyObject *self, PyObject *key) {
+PyObject * ValueProxy_subscript(ValueProxyObject *self, PyObject *key) {
 
 	assert(key);
 	assert(self->param);
