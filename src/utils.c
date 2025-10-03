@@ -704,8 +704,9 @@ int _pycsh_util_index(int seqlen, int *index) {
 /* Private interface for getting the value of single parameter
    Increases the reference count of the returned item before returning.
    Use INT_MIN for offset as no offset. */
-PyObject * _pycsh_util_get_single(param_t *param, int offset, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+PyObject * _pycsh_util_get_single(param_t *param, const int offset_orig, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
 
+	int offset = offset_orig;
 	if (offset != INT_MIN) {
 		if (_pycsh_util_index(param->array_size, &offset))  // Validate the offset.
 			return NULL;  // Raises IndexError.
@@ -814,13 +815,22 @@ PyObject * _pycsh_util_get_single(param_t *param, int offset, int autopull, int 
 		case PARAM_TYPE_STRING: {
 			char buf[param->array_size];
 			param_get_string(param, &buf, param->array_size);
-			if (buf[offset] == '\0') {  /* TODO Kevin: Consider whether we should use `offset >= strnlen(buf, param->array_size)` here instead. */
+			int offset_str = offset_orig;
+			if (offset_str != INT_MIN) {
+				if (_pycsh_util_index(strnlen(buf, param->array_size), &offset_str)) {  // Validate the offset.
+					return NULL;  // Raises IndexError.
+				}
+			} else {
+				offset_str = -1;
+			}
+
+			if (buf[offset_str] == '\0') {  /* TODO Kevin: Consider whether we should use `offset >= strnlen(buf, param->array_size)` here instead. */
 				/* I don't much like raising an error here, but it's how we handle it in `_pycsh_util_get_array_indexes()`. */
-				PyErr_Format(PyExc_IndexError, "IndexError: Index (%d) out of range of parameter ('%s@%d') value", offset, param->name, *param->node);
+				PyErr_Format(PyExc_IndexError, "IndexError: Index (%d) out of range of parameter ('%s@%d') value", offset_str, param->name, *param->node);
 				return NULL;
 			}
-			if (offset != -1) {
-				char charstrbuf[] = {buf[offset]};
+			if (offset_str != -1) {
+				char charstrbuf[] = {buf[offset_str]};
 				return Py_BuildValue("s", charstrbuf);
 			}
 			return Py_BuildValue("s", buf);
