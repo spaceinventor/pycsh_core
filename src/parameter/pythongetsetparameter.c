@@ -625,6 +625,8 @@ static PyObject * PythonGetSetParameter_new(PyTypeObject *type, PyObject * args,
         self->vmem_heap.backup = NULL;
         self->vmem_heap.big_endian = false;
         self->vmem_heap.restore = NULL;
+        self->vmem_heap.read = NULL;
+        self->vmem_heap.write = NULL;
 
         if (getter_func != NULL && getter_func != Py_None) {
             self->getter_func = Py_NewRef(getter_func);

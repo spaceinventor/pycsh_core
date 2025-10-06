@@ -63,11 +63,7 @@ static PyObject * ParameterList_pull(ParameterListObject *self, PyObject *args, 
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|IIi", kwlist, &node, &timeout, &paramver))
 		return NULL;  // TypeError is thrown
 
-	void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
-	if (!queuebuffer) {
-		PyErr_NoMemory();
-		return NULL;
-	}
+	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_GET, paramver);
 
@@ -121,11 +117,7 @@ static PyObject * ParameterList_push(ParameterListObject *self, PyObject *args, 
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|IIIi", kwlist, &node, &timeout, &hwid, &paramver))
 		return NULL;  // TypeError is thrown
 
-	void * queuebuffer CLEANUP_FREE = malloc(PARAM_SERVER_MTU);
-	if (!queuebuffer) {
-		PyErr_NoMemory();
-		return NULL;
-	}
+	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 
