@@ -1393,7 +1393,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 			const char* c_str = PyUnicode_AsUTF8(obj_str);
 			assert(c_str);
 			/* TODO Kevin: We can't really assume we're using ValueProxy here. Could be `pycsh.set()` in the future? */
-			PyErr_Format(PyExc_IndexError, "Use `[:]` to set all indices (of `%s`) from a single value (%s). i.e: `Parameter.value = 1` -> `Parameter.value[:] = 1`", param->name, c_str);
+			PyErr_Format(PyExc_IndexError, "Use `[:]` to set all indices (of `%s`) from a single value (%s). i.e: `Parameter.value = %d` -> `Parameter.value[:] = %d`", param->name, c_str, c_str, c_str);
 			return NULL;
 		}
     }
