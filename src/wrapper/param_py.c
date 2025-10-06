@@ -105,7 +105,7 @@ PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {
 #endif
 		if (_pycsh_util_set_single(param, value, offset, dest, timeout, retries, paramver, 1, verbose))
 			return NULL;  // Raises one of many possible exceptions.
-		param_print(param, -1, NULL, 0, verbose, 0);
+		//param_print(param, -1, NULL, 0, verbose, 0);
 	}
 
 	Py_RETURN_NONE;

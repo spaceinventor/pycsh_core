@@ -41,11 +41,9 @@
 
 #include <pycsh/parameter.h>
 #include <pycsh/pythonparameter.h>
-#include "parameter/parameterarray.h"
-#include "parameter/pythonarrayparameter.h"
 #include "parameter/pythongetsetparameter.h"
-#include "parameter/pythongetsetarrayparameter.h"
 #include "parameter/parameterlist.h"
+#include "parameter/valueproxy.h"
 
 #include "csp_classes/ident.h"
 #include "csp_classes/ifstat.h"
@@ -71,7 +69,7 @@
 static_assert(sizeof(unsigned int) == sizeof(uint32_t));
 
 // We include this parameter when testing the behavior of arrays, as none would exist otherwise.
-uint8_t _test_array[] = {1,2,3,4,5,6,7,8};
+uint8_t _test_array[] = {0,1,2,3,4,5,6,7};
 PARAM_DEFINE_STATIC_RAM(1001, test_array_param,          PARAM_TYPE_UINT8,  8, sizeof(uint8_t),  PM_DEBUG, NULL, "", _test_array, "Parameter to use when testing arrays.");
 
 static char _test_str[80];
@@ -80,7 +78,7 @@ PARAM_DEFINE_STATIC_RAM(1002, test_str,          PARAM_TYPE_STRING,  80, 1,  PM_
 
 
 
-unsigned int pycsh_dfl_verbose = -1;
+int pycsh_dfl_verbose = -1;
 
 void * onehz_task(void * param) {
 	while(1) {
@@ -318,11 +316,11 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
 		PyModule_AddObject_ErrCheck(pycsh, "ParamCallbackError", PyExc_InvalidParameterTypeError);
 	}
 
-	if (PyModule_AddType(pycsh, &ParameterType) < 0) {
+	if (PyModule_AddType(pycsh, &ValueProxyType) < 0) {
         return NULL;
 	}
 
-	if (PyModule_AddType(pycsh, &ParameterArrayType) < 0) {
+	if (PyModule_AddType(pycsh, &ParameterType) < 0) {
         return NULL;
 	}
 
@@ -330,27 +328,10 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
         return NULL;
 	}
 
-	/* PythonArrayParameterType must be created dynamically after
-		ParameterArrayType and PythonParameterType to support multiple inheritance. */
-	if (create_pythonarrayparameter_type() == NULL) {
-		return NULL;
-	}
-    if (PyModule_AddType(pycsh, PythonArrayParameterType) < 0) {
-        return NULL;
-	}
-
 	if (PyModule_AddType(pycsh, &PythonGetSetParameterType) < 0) {
         return NULL;
 	}
 
-	/* PythonArrayParameterType must be created dynamically after
-		ParameterArrayType and PythonParameterType to support multiple inheritance. */
-	if (create_pythongetsetarrayparameter_type() == NULL) {
-		return NULL;
-	}
-    if (PyModule_AddType(pycsh, PythonGetSetArrayParameterType) < 0) {
-        return NULL;
-	}
 
 	//ParameterListType.tp_base = &PyList_Type;
 	if (PyModule_AddType(pycsh, &ParameterListType) < 0) {

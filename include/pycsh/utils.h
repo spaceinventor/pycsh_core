@@ -22,7 +22,7 @@ void cleanup_str(char *const* obj);
 void _close_dir(DIR *const* dir);
 void _close_file(FILE *const* file);
 void cleanup_GIL(PyGILState_STATE * gstate);
-void cleanup_pyobject(PyObject **obj);
+void cleanup_pyobject(PyObject * const * obj);
 
 void state_release_GIL(PyThreadState ** state);
 
@@ -96,6 +96,11 @@ PyObject * _pycsh_util_get_single(param_t *param, int offset, int autopull, int 
    Increases the reference count of the returned tuple before returning.  */
 PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int timeout, int retries, int paramver, int verbose);
 
+/* Similar to `_pycsh_util_get_array()`, but accepts a `PyObject * indexes`,
+	which will be iterated to map out specific indexes to retrieve/return. */
+PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose);
+
+PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyObject * indexes, int autopush, int host, int timeout, int retries, int paramver, int verbose);
 
 /* Private interface for setting the value of a normal parameter. 
    Use INT_MIN as no offset. */
@@ -110,6 +115,10 @@ int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout
  * @return borrowed reference to the wrapping ParameterObject if wrapped, otherwise NULL.
  */
 ParameterObject * Parameter_wraps_param(param_t *param);
+
+/* Checks that the specified index is within bounds of the sequence index, raises IndexError if not.
+   Supports Python backwards subscriptions, mutates the index to a positive value in such cases. */
+int _pycsh_util_index(int seqlen, int *index);
 
 /**
  * @brief Convert a python str og int parameter mask to the uint32_t C equivalent.

@@ -17,8 +17,10 @@
 #include <param/param.h>
 
 #include <pycsh/pycsh.h>
-#include "parameterarray.h"
 #include <pycsh/utils.h>
+
+#include "valueproxy.h"
+
 
 #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
 #define  _PyLong_AsInt PyLong_AsInt
@@ -65,51 +67,6 @@ static PyObject * Parameter_str(ParameterObject *self) {
 	return Py_BuildValue("s", buf);
 }
 
-static PyTypeObject * get_arrayparameter_subclass(PyTypeObject *type) {
-
-	// Get the __subclasses__ method
-    PyObject *subclasses_method AUTO_DECREF = PyObject_GetAttrString((PyObject *)type, "__subclasses__");
-    if (subclasses_method == NULL) {
-        return NULL;
-    }
-
-	// NOTE: .__subclasses__() is not recursive, but this is currently not an issue with ParameterArray and PythonArrayParameter
-
-    // Call the __subclasses__ method
-    PyObject *subclasses_list AUTO_DECREF = PyObject_CallObject(subclasses_method, NULL);
-    if (subclasses_list == NULL) {
-        return NULL;
-    }
-
-    // Ensure the result is a list
-    if (!PyList_Check(subclasses_list)) {
-        PyErr_SetString(PyExc_TypeError, "__subclasses__ did not return a list");
-        return NULL;
-    }
-
-    // Iterate over the list of subclasses
-    Py_ssize_t num_subclasses = PyList_Size(subclasses_list);
-    for (Py_ssize_t i = 0; i < num_subclasses; i++) {
-        PyObject *subclass = PyList_GetItem(subclasses_list, i);  // Borrowed reference
-        if (subclass == NULL) {
-            return NULL;
-        }
-
-		int is_subclass = PyObject_IsSubclass(subclass, (PyObject*)&ParameterArrayType);
-        if (is_subclass < 0) {
-			return NULL;
-		}
-		
-		PyErr_Clear();
-		if (is_subclass) {
-			return (PyTypeObject*)subclass;
-		}
-    }
-
-	PyErr_Format(PyExc_TypeError, "Failed to find ArrayParameter variant of class %s", type->tp_name);
-	return NULL;
-}
-
 /* Create a Python Parameter object from a param_t pointer directly. */
 PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const PyObject * callback, int host, int timeout, int retries, int paramver, py_param_free_e free_in_dealloc) {
 	if (param == NULL) {
@@ -120,19 +77,6 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const
 	if ((existing_parameter = Parameter_wraps_param(param)) != NULL) {
 		/* TODO Kevin: How should we handle when: host, timeout, retries and paramver are different for the existing parameter? */
 		return (PyObject*)Py_NewRef(existing_parameter);
-	}
-
-	if (param->array_size <= 1 && type == &ParameterArrayType) {
-		PyErr_SetString(PyExc_TypeError, 
-			"Attempted to create a ParameterArray instance, for a non array parameter.");
-		return NULL;
-	} else if (param->array_size > 1) {  		   // If the parameter is an array.
-		type = get_arrayparameter_subclass(type);  // We create a ParameterArray instance instead.
-		if (type == NULL) {
-			return NULL;
-		}
-		// If you listen really carefully here, you can hear OOP idealists, screaming in agony.
-		// On a more serious note, I'm amazed that this even works at all.
 	}
 
 	ParameterObject *self = (ParameterObject *)type->tp_alloc(type, 0);
@@ -148,6 +92,7 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const
 		assert(PyDict_GetItem((PyObject*)param_callback_dict, key) == NULL);
 		int set_res = PyDict_SetItem((PyObject*)param_callback_dict, key, (PyObject*)self);
 		assert(set_res == 0);  // Allows the param_t callback to find the corresponding ParameterObject.
+		(void)set_res;
 		assert(PyDict_GetItem((PyObject*)param_callback_dict, key) != NULL);
 		assert(!PyErr_Occurred());
 
@@ -167,7 +112,7 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const
 		}
 	}
 
-	self->host = host;
+	self->host = (host != INT_MIN) ? host : *param->node;
 	self->param = param;
 	self->timeout = timeout;
 	self->retries = retries;
@@ -314,49 +259,64 @@ static PyObject * Parameter_get_c_type(ParameterObject *self, void *closure) {
 	return Py_BuildValue("i", self->param->type);
 }
 
+#ifdef OLD_PARAM_API_ERROR
+
 static PyObject * Parameter_get_oldvalue(ParameterObject *self, void *closure) {
-	PyErr_SetString(PyExc_AttributeError, "Parameter.value has been changed to .remote_value and .cached_value instead");
+	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
 	return NULL;
 }
 
 static int Parameter_set_oldvalue(ParameterObject *self, PyObject *value, void *closure) {
-	PyErr_SetString(PyExc_AttributeError, "Parameter.value has been changed to .remote_value and .cached_value instead");
+	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
 	return -1;
 }
 
-static PyObject * Parameter_get_value(ParameterObject *self, int remote) {
-	if (self->param->array_size > 1 && self->param->type != PARAM_TYPE_STRING)
-		return _pycsh_util_get_array(self->param, remote, self->host, self->timeout, self->retries, self->paramver, pycsh_dfl_verbose);
-	return _pycsh_util_get_single(self->param, INT_MIN, remote, self->host, self->timeout, self->retries, self->paramver, pycsh_dfl_verbose);
+#endif  /* OLD_PARAM_API_ERROR */
+
+
+static PyObject * Parameter_get_valueproxy(ParameterObject *self, void *closure) {
+	/* Default to remote, user can override by calling the ValueProxy, i.e: `.value_index(remote=False)[0]` */
+	return pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
 }
 
-static int Parameter_set_value(ParameterObject *self, PyObject *value, int remote) {
+static PyObject * Parameter_get_valueproxy_cached(ParameterObject *self, void *closure) {
 
-	if (value == NULL) {
-        PyErr_SetString(PyExc_TypeError, "Cannot delete the value attribute");
-        return -1;
-    }
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
+		return NULL;
+	}
 
-	if (self->param->array_size > 1 && self->param->type != PARAM_TYPE_STRING && self->param->type != PARAM_TYPE_DATA)  // Is array parameter
-		return _pycsh_util_set_array(self->param, value, self->host, self->timeout, self->retries, self->paramver, pycsh_dfl_verbose);
-	return _pycsh_util_set_single(self->param, value, INT_MIN, self->host, self->timeout, self->retries, self->paramver, remote, pycsh_dfl_verbose);  // Normal parameter
+	/* Default to remote, user can override by calling the ValueProxy, i.e: `.value_index(remote=False)[0]` */
+	ValueProxyObject * const value_proxy = (ValueProxyObject*)pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	if (!value_proxy) {
+		return NULL;
+	}
+	value_proxy->remote = false;
+	return (PyObject*)value_proxy;  /* Already new reference */
 }
 
-static PyObject * Parameter_get_remote_value(ParameterObject *self, void *closure) {
-	return Parameter_get_value(self, 1);
+static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void *closure) {
+
+	ValueProxyObject * const value_proxy = (ValueProxyObject*)pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	if (!value_proxy) {
+		return -1;
+	}
+	return ValueProxy_ass_subscript(value_proxy, Py_None, value);
 }
 
-static PyObject * Parameter_get_cached_value(ParameterObject *self, void *closure) {
-	return Parameter_get_value(self, 0);
+static int Parameter_set_valueproxy_cached(ParameterObject *self, PyObject *value, void *closure) {
+
+	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
+		return -1;
+	}
+
+	ValueProxyObject * const value_proxy = (ValueProxyObject*)pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	if (!value_proxy) {
+		return -1;
+	}
+	value_proxy->remote = false;
+	return ValueProxy_ass_subscript(value_proxy, Py_None, value);
 }
 
-static int Parameter_set_remote_value(ParameterObject *self, PyObject *value, void *closure) {
-	return Parameter_set_value(self, value, 1);
-}
-
-static int Parameter_set_cached_value(ParameterObject *self, PyObject *value, void *closure) {
-	return Parameter_set_value(self, value, 0);
-}
 
 static PyObject * Parameter_is_vmem(ParameterObject *self, void *closure) {
 	// I believe this is the most appropriate way to check for vmem parameters.
@@ -471,6 +431,53 @@ static void Parameter_dealloc(ParameterObject *self) {
     baseclass->tp_dealloc((PyObject*)self);
 }
 
+static PyObject * Parameter_GetItem(ParameterObject *self, PyObject *item) {
+
+	#pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+	ValueProxyObject * const value_proxy AUTO_DECREF = pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	#pragma GCC diagnostic pop
+	if (!value_proxy) {
+		return NULL;
+	}
+
+	return ValueProxy_subscript(value_proxy, item);
+}
+
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#define  _PyLong_AsInt PyLong_AsInt
+#endif
+
+static int Parameter_SetItem(ParameterObject *self, PyObject* key, PyObject* value) {
+
+	if (value == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Cannot delete parameter array indexes.");
+        return -1;
+    }
+
+	#pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+	ValueProxyObject * const value_proxy AUTO_DECREF = pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
+	#pragma GCC diagnostic pop
+	if (!value_proxy) {
+		return -1;
+	}
+
+	return ValueProxy_ass_subscript(value_proxy, key, value);
+}
+
+static Py_ssize_t ParameterArray_length(ParameterObject *self) {
+	// We currently raise an exception when getting len() of non-array type parameters.
+	// This stops PyCharm (Perhaps other IDE's) from showing their length as 0. ¯\_(ツ)_/¯
+	return self->param->array_size;
+}
+
+static PyMappingMethods ParameterArray_as_mapping = {
+    (lenfunc)ParameterArray_length,
+    (binaryfunc)Parameter_GetItem,
+    (objobjargproc)Parameter_SetItem
+};
+
 /* 
 The Python binding 'Parameter' class exposes most of its attributes through getters, 
 as only its 'value', 'host' and 'node' are mutable, and even those are through setters.
@@ -479,34 +486,45 @@ static PyGetSetDef Parameter_getsetters[] = {
 
 #if 1  // param_t getsetters
 	{"name", (getter)Parameter_get_name, NULL,
-     "Returns the name of the wrapped param_t C struct.", NULL},
+     PyDoc_STR("Returns the name of the wrapped param_t C struct."), NULL},
     {"unit", (getter)Parameter_get_unit, NULL,
-     "The unit of the wrapped param_t c struct as a string or None.", NULL},
+     PyDoc_STR("The unit of the wrapped param_t c struct as a string or None."), NULL},
 	{"docstr", (getter)Parameter_get_docstr, NULL,
-     "The help-text of the wrapped param_t c struct as a string or None.", NULL},
+     PyDoc_STR("The help-text of the wrapped param_t c struct as a string or None."), NULL},
 	{"id", (getter)Parameter_get_id, NULL,
-     "id of the parameter", NULL},
+     PyDoc_STR("id of the parameter"), NULL},
 	{"type", (getter)Parameter_gettype_deprecated, NULL,
-     "type of the parameter", NULL},
+     PyDoc_STR("type of the parameter"), NULL},
 	{"py_type", (getter)Parameter_get_py_type, NULL,
-     "type of the parameter", NULL},
+     PyDoc_STR("type of the parameter"), NULL},
 	{"c_type", (getter)Parameter_get_c_type, NULL,
-     "type of the parameter", NULL},
+     PyDoc_STR("type of the parameter"), NULL},
 	{"mask", (getter)Parameter_getmask, NULL,
-     "mask of the parameter", NULL},
+     PyDoc_STR("mask of the parameter"), NULL},
 	{"timestamp", (getter)Parameter_gettimestamp, NULL,
-     "timestamp of the parameter", NULL},
+     PyDoc_STR("timestamp of the parameter"), NULL},
 	{"node", (getter)Parameter_get_node, (setter)Parameter_set_node,
-     "node of the parameter", NULL},
+     PyDoc_STR("node of the parameter"), NULL},
 #endif
 
 #if 1  // Parameter getsetters
 	{"host", (getter)Parameter_get_host, (setter)Parameter_set_host,
      PyDoc_STR("host of the parameter"), NULL},
-	{"remote_value", (getter)Parameter_get_remote_value, (setter)Parameter_set_remote_value,
+#ifdef OLD_PARAM_API_ERROR
+	{"remote_value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
      PyDoc_STR("get/set the remote (and cached) value of the parameter"), NULL},
-	{"cached_value", (getter)Parameter_get_cached_value, (setter)Parameter_set_cached_value,
+	{"cached_value", (getter)Parameter_get_oldvalue, (setter)Parameter_set_oldvalue,
      PyDoc_STR("get/set the cached value of the parameter"), NULL},
+#else  /* OLD_PARAM_API_ERROR */
+	{"remote_value", (getter)Parameter_get_valueproxy, (setter)Parameter_set_valueproxy,
+     PyDoc_STR("get/set the remote (and cached) value of the parameter"), NULL},
+	{"cached_value", (getter)Parameter_get_valueproxy_cached, (setter)Parameter_set_valueproxy_cached,
+     PyDoc_STR("get/set the cached value of the parameter"), NULL},
+#endif  /* OLD_PARAM_API_ERROR */
+
+	{"value", (getter)Parameter_get_valueproxy, (setter)Parameter_set_valueproxy,
+     PyDoc_STR("get/set the remote/cached value of the parameter"), NULL},
+
 	{"is_vmem", (getter)Parameter_is_vmem, NULL,
      PyDoc_STR("whether the parameter is a vmem parameter"), NULL},
 	{"storage_type", (getter)Parameter_get_storage_type, NULL,
@@ -519,6 +537,18 @@ static PyGetSetDef Parameter_getsetters[] = {
     {NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
+#if 0
+static PyMethodDef Parameter_methods[] = {
+    {"get_value", (PyCFunction)Parameter_get_value, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Returns the value of a single index, so the result will not be iterable (with the exception of string parameters, "\
+		"which always returns the whole string, ignoring the `index` argument).")},
+    {"set_value", (PyCFunction)Parameter_set_value, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Sets the value of the parameter.")},
+    {"get_value_array", (PyCFunction)Parameter_get_value_array, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Always return an iterable from the specified sequence. By default return the whole parameter. "\
+        "Examples for the following parameter `set index_array [0 1 2 3 4 5 6 7]`:")},
+    {"set_value_array", (PyCFunction)Parameter_set_value_array, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Sets the local cached value of the parameter.")},
+    {NULL, NULL, 0, NULL}
+};
+#endif
+
 PyTypeObject ParameterType = {
     PyVarObject_HEAD_INIT(NULL, 0)
     .tp_name = "pycsh.Parameter",
@@ -530,7 +560,8 @@ PyTypeObject ParameterType = {
     .tp_dealloc = (destructor)Parameter_dealloc,
 	.tp_getset = Parameter_getsetters,
 	// .tp_members = Parameter_members,
-	// .tp_methods = Parameter_methods,
+	.tp_as_mapping = &ParameterArray_as_mapping,
+	//.tp_methods = Parameter_methods,
 	.tp_str = (reprfunc)Parameter_str,
 	.tp_richcompare = (richcmpfunc)Parameter_richcompare,
 	.tp_hash = (hashfunc)Parameter_hash,
