@@ -22,10 +22,6 @@
 #include "valueproxy.h"
 
 
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
-#define  _PyLong_AsInt PyLong_AsInt
-#endif
-
 /* Maps param_t to its corresponding PythonParameter for use by C callbacks. */
 PyDictObject * param_callback_dict = NULL;
 
@@ -443,10 +439,6 @@ static PyObject * Parameter_GetItem(ParameterObject *self, PyObject *item) {
 
 	return ValueProxy_subscript(value_proxy, item);
 }
-
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
-#define  _PyLong_AsInt PyLong_AsInt
-#endif
 
 static int Parameter_SetItem(ParameterObject *self, PyObject* key, PyObject* value) {
 

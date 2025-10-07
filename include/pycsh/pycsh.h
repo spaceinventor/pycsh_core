@@ -17,6 +17,10 @@
 
 #include <param/param_queue.h>
 
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+#define  _PyLong_AsInt PyLong_AsInt
+#endif
+
 /**
  * @brief string representing this version of PyCSH
  */

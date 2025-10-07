@@ -225,10 +225,6 @@ static PyObject * ValueProxy_get_retries(ValueProxyObject *self, void *closure) 
 	return Py_BuildValue("i", self->retries);
 }
 
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
-#define  _PyLong_AsInt PyLong_AsInt
-#endif
-
 static int ValueProxy_set_retries(ValueProxyObject *self, PyObject *value, void *closure) {
 
 	if (value == NULL) {
