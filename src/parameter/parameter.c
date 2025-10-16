@@ -89,10 +89,14 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const
 		int set_res = PyDict_SetItem((PyObject*)param_callback_dict, key, (PyObject*)self);
 		assert(set_res == 0);  // Allows the param_t callback to find the corresponding ParameterObject.
 		(void)set_res;
+		/* Just sanity check that we can get the item, so it doesn't later fail in `Parameter_dealloc()` */
 		assert(PyDict_GetItem((PyObject*)param_callback_dict, key) != NULL);
 		assert(!PyErr_Occurred());
 
 		assert(self);
+		Py_DECREF(self);  // param_callback_dict should hold a weak reference to self
+
+		#if 0
 		assert(self->ob_base.ob_type);
 		/* The parameter linked list should maintain an eternal reference to Parameter() instances, and subclasses thereof (with the exception of PythonParameter() and its subclasses).
 			This check should ensure that: Parameter("name") is Parameter("name") == True.
@@ -106,6 +110,7 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const
 		if (is_pythonparameter) {
 			Py_DECREF(self);  // param_callback_dict should hold a weak reference to self
 		}
+		#endif
 	}
 
 	self->host = (host != INT_MIN) ? host : *param->node;
@@ -317,8 +322,7 @@ static int Parameter_set_valueproxy_cached(ParameterObject *self, PyObject *valu
 static PyObject * Parameter_is_vmem(ParameterObject *self, void *closure) {
 	// I believe this is the most appropriate way to check for vmem parameters.
 	PyObject * result = self->param->vmem == NULL ? Py_False : Py_True;
-	Py_INCREF(result);
-	return result;
+	return Py_NewRef(result);
 }
 
 static PyObject * Parameter_get_timeout(ParameterObject *self, void *closure) {
@@ -404,11 +408,27 @@ static void Parameter_dealloc(ParameterObject *self) {
 	{   /* Remove ourselves from the callback/lookup dictionary */
         PyObject *key AUTO_DECREF = PyLong_FromVoidPtr(self->param);
         assert(key != NULL);
+		assert(!PyErr_Occurred());
         if (PyDict_GetItem((PyObject*)param_callback_dict, key) != NULL) {
-            PyDict_DelItem((PyObject*)param_callback_dict, key);
+			/* `param_callback_dict` currently holds a weak reference to `self`.
+				`PyDict_DelItem()` will `Py_DECREF()`,
+				which should not cause `self->ob_base.ob_refcnt` to go negative. */
+			Py_INCREF(key);
+            if (PyDict_DelItem((PyObject*)param_callback_dict, key) != 0) {
+				/* Restore reference count if removal failed. */
+				Py_DECREF(key);
+			}
         }
     }
 
+	assert(self->param);
+	const param_t * const list_param = param_list_find_id(*self->param->node, self->param->id);
+	if (list_param == NULL || list_param != self->param) {
+		/* Our parameter is not in the list, we should free it. */
+		param_list_destroy(self->param);
+	}
+
+	#if 0
 	if (self->free_in_dealloc == PY_PARAM_FREE_PARAM_T) {
 		free(self->param);
 	} else if (self->free_in_dealloc == PY_PARAM_FREE_LIST_DESTROY) {
@@ -421,7 +441,8 @@ static void Parameter_dealloc(ParameterObject *self) {
 			We must therefore free() it, now that we are being deallocated.
 			We check that (self->param != NULL), just in case we allow that to raise exceptions in the future. */
 		param_list_destroy(self->param);
-	} 
+	}
+	#endif
 
 	PyTypeObject *baseclass = pycsh_get_base_dealloc_class(&ParameterType);
     baseclass->tp_dealloc((PyObject*)self);
@@ -529,17 +550,69 @@ static PyGetSetDef Parameter_getsetters[] = {
     {NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
-#if 0
+static PyObject * Parameter_list_add(ParameterObject *self, PyObject *args, PyObject *kwds) {
+
+	int return_self = true;
+
+	static const char * const kwlist[] = {"return_self", NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|p", kwlist, &return_self)) {
+		return NULL;  // TypeError is thrown
+	}
+
+	const param_t * const list_param = param_list_find_id(*self->param->node, self->param->id);
+	
+	if (list_param == self->param) {
+		/* Existing parameter is ourself.
+			So there is no reason to assign the list parameter to what it already is. */
+		/* 5 is a unique return value (albeit obtuse) (unlikely to be used by `param_list_add()` in the future),
+			which indicates that we did not update `self` in the list. */
+		return return_self ? Py_NewRef(self) : Py_BuildValue("i", 5);
+	}
+
+
+	/* res==1=="existing parameter updated" */
+	const int res = param_list_add(self->param);
+
+	
+	if (res!=1) {
+		/* Did not update existing parameter. We either added a new parameter, or error. */
+		return return_self ? Py_NewRef(self) : Py_BuildValue("i", res);
+	}
+
+	/* NOTE Kevin: Be very careful about `destroy=true` here.
+		it `assert()`s that we never create multiple `ParameterObject`s pointing/reusing the same `self->param`.
+		We can ensure this by keeping a weakref dict of existing `ParameterObject` instances.
+		(weakref dict should use `&param_t` as key, which should it to return both new parameters we've created, and wrappers for existing parameters). */
+	/* TODO Kevin: Test correct handling of `param_heap_t` here.  */
+	param_list_remove_specific(self->param, 0, true);
+
+	/* NOTE: This assignment has big implications of state. */
+	self->param = list_param;
+
+	return return_self ? Py_NewRef(self) : Py_BuildValue("i", res);
+}
+static PyObject * Parameter_list_forget(ParameterObject *self, PyObject *args, PyObject *kwds) {
+	int verbose = pycsh_dfl_verbose;
+
+	static const char * const kwlist[] = {"verbose", NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &verbose)) {
+		return NULL;  // TypeError is thrown
+	}
+
+	/* `param_list_destroy()` will be called by `Parameter_dealloc()` */
+	param_list_remove_specific(self->param, verbose, false);
+
+	Py_RETURN_NONE;
+}
 static PyMethodDef Parameter_methods[] = {
-    {"get_value", (PyCFunction)Parameter_get_value, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Returns the value of a single index, so the result will not be iterable (with the exception of string parameters, "\
-		"which always returns the whole string, ignoring the `index` argument).")},
-    {"set_value", (PyCFunction)Parameter_set_value, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Sets the value of the parameter.")},
-    {"get_value_array", (PyCFunction)Parameter_get_value_array, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Always return an iterable from the specified sequence. By default return the whole parameter. "\
-        "Examples for the following parameter `set index_array [0 1 2 3 4 5 6 7]`:")},
-    {"set_value_array", (PyCFunction)Parameter_set_value_array, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Sets the local cached value of the parameter.")},
+    {"list_add", (PyCFunction)Parameter_list_add, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Add `self` the global parameter list. Exposes it to other CSP nodes on the network, "\
+		"And allows it to be found in `pycsh.list()`")},
+    {"list_forget", (PyCFunction)Parameter_list_forget, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Remove this parameter from the global parameter list. Hiding it from other CSP nodes on the network. "\
+		"Also removes it from `pycsh.list()`")},
     {NULL, NULL, 0, NULL}
 };
-#endif
 
 PyTypeObject ParameterType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -553,7 +626,7 @@ PyTypeObject ParameterType = {
 	.tp_getset = Parameter_getsetters,
 	// .tp_members = Parameter_members,
 	.tp_as_mapping = &ParameterArray_as_mapping,
-	//.tp_methods = Parameter_methods,
+	.tp_methods = Parameter_methods,
 	.tp_str = (reprfunc)Parameter_str,
 	.tp_richcompare = (richcmpfunc)Parameter_richcompare,
 	.tp_hash = (hashfunc)Parameter_hash,

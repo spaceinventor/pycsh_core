@@ -260,10 +260,6 @@ static void PythonParameter_dealloc(PythonParameterObject *self) {
         self->callback = NULL;
     }
 
-    /* We defer deallocation to our Parameter baseclass,
-        as it must also handle deallocation of param_t's that have been "list forget"en anyway. */
-    param_list_remove_specific(((ParameterObject*)self)->param, 0, 0);
-
     PyTypeObject *baseclass = pycsh_get_base_dealloc_class(&PythonParameterType);
     baseclass->tp_dealloc((PyObject*)self);
 }
@@ -367,6 +363,7 @@ PythonParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, pa
         return NULL;
     }
 
+    #if 0
     switch (param_list_add(new_param)) {
         case 0:
             break;  // All good
@@ -387,6 +384,7 @@ PythonParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, pa
     self->keep_alive = 1;
     Py_INCREF(self);  // Parameter list holds a reference to the ParameterObject
     /* NOTE: If .keep_alive defaults to False, then we should remove this Py_INCREF() */
+    #endif
 
     /* NULL callback becomes None on a ParameterObject instance */
     if (callback == NULL)
@@ -442,6 +440,7 @@ static PyObject * PythonParameter_new(PyTypeObject *type, PyObject * args, PyObj
     return (PyObject *)python_param;
 }
 
+#if 0
 static PyObject * Parameter_get_keep_alive(PythonParameterObject *self, void *closure) {
     return self->keep_alive ? Py_True : Py_False;
 }
@@ -468,14 +467,15 @@ static int Parameter_set_keep_alive(PythonParameterObject *self, PyObject *value
 
     return 0;
 }
+#endif
 
 static PyObject * Parameter_get_callback(PythonParameterObject *self, void *closure) {
     return Py_NewRef(self->callback);
 }
 
 static PyGetSetDef PythonParameter_getsetters[] = {
-    {"keep_alive", (getter)Parameter_get_keep_alive, (setter)Parameter_set_keep_alive,
-     "Whether the Parameter should remain in the parameter list, when all Python references are lost. This makes it possible to recover the Parameter instance through list()", NULL},
+    // {"keep_alive", (getter)Parameter_get_keep_alive, (setter)Parameter_set_keep_alive,
+    //  "Whether the Parameter should remain in the parameter list, when all Python references are lost. This makes it possible to recover the Parameter instance through list()", NULL},
     {"callback", (getter)Parameter_get_callback, (setter)Parameter_set_callback,
      "callback of the parameter", NULL},
     {NULL, NULL, NULL, NULL}  /* Sentinel */
