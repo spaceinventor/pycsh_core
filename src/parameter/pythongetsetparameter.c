@@ -202,7 +202,7 @@ void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len
     }
 
     // Undo VMEM addr conversion to find parameter index.
-    const param_t *param = python_param->parameter_object.parameter_object.param;
+    const param_t *param = python_param->parameter_object.param;
     int offset = addr/param->array_step;
     // if (0 == addr) {
     //     offset = 1;
@@ -253,13 +253,13 @@ void Parameter_setter(vmem_t * vmem, uint64_t addr, const void * datain, uint32_
     }
 
     // Undo VMEM addr conversion to find parameter index.
-    const param_t *param = python_param->parameter_object.parameter_object.param;
+    const param_t *param = python_param->parameter_object.param;
     const int offset = (addr-(intptr_t)param->addr)/param->array_step;
 
     assert(PyCallable_Check(python_setter));
     /* Create the arguments. */
     PyObject *pyoffset AUTO_DECREF = Py_BuildValue("i", offset);
-    PyObject *pyval AUTO_DECREF = _pycsh_val_to_pyobject(python_param->parameter_object.parameter_object.param->type, datain);
+    PyObject *pyval AUTO_DECREF = _pycsh_val_to_pyobject(python_param->parameter_object.param->type, datain);
     if (pyval == NULL) {
         return;
     }
@@ -619,7 +619,7 @@ static PyObject * PythonGetSetParameter_new(PyTypeObject *type, PyObject * args,
         self->vmem_heap.ack_with_pull = false;
         self->vmem_heap.driver = NULL;
         self->vmem_heap.name = "GETSET";
-        self->vmem_heap.size = array_size*param_typesize(self->parameter_object.parameter_object.param->type);
+        self->vmem_heap.size = array_size*param_typesize(self->parameter_object.param->type);
         self->vmem_heap.type = -1;  // TODO Kevin: Maybe expose vmem_types, instead of just setting unspecified.
         self->vmem_heap.vaddr = 0;
         self->vmem_heap.backup = NULL;
@@ -639,7 +639,7 @@ static PyObject * PythonGetSetParameter_new(PyTypeObject *type, PyObject * args,
         assert(self->vmem_heap.read != NULL || self->vmem_heap.write != NULL);
     }
     // Point our parameter to use our newly initialized get/set VMEM
-    self->parameter_object.parameter_object.param->vmem = &self->vmem_heap;
+    self->parameter_object.param->vmem = &self->vmem_heap;
 
     /* return should steal the reference created by Parameter_create_new() */
     return (PyObject *)self;
@@ -666,5 +666,5 @@ PyTypeObject PythonGetSetParameterType = {
     .tp_getset = PythonParameter_getsetters,
     // .tp_str = (reprfunc)Parameter_str,
     // .tp_richcompare = (richcmpfunc)Parameter_richcompare,
-    .tp_base = &PythonParameterType,
+    .tp_base = &ParameterType,
 };

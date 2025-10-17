@@ -14,7 +14,6 @@
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 #include <pycsh/parameter.h>
-#include <pycsh/pythonparameter.h>
 
 #include "param_list_py.h"
 

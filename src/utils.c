@@ -19,7 +19,6 @@
 
 #include <pycsh/pycsh.h>
 #include <pycsh/parameter.h>
-#include <pycsh/pythonparameter.h>
 #include "parameter/parameterlist.h"
 
 #undef NDEBUG
@@ -1387,13 +1386,13 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
     if (!values_iter) {
         assert(PyErr_Occurred());
 		PyErr_Clear();
-		if (_indexes_newref)  {  /* No index specified. */
+		if (_indexes_newref && param->array_size > 1)  {  /* No index specified. */
 			PyObject * obj_str AUTO_DECREF = PyObject_Str(values);
 			assert(obj_str);
 			const char* c_str = PyUnicode_AsUTF8(obj_str);
 			assert(c_str);
 			/* TODO Kevin: We can't really assume we're using ValueProxy here. Could be `pycsh.set()` in the future? */
-			PyErr_Format(PyExc_IndexError, "Use `[:]` to set all indices (of `%s`) from a single value (%s). i.e: `Parameter.value = %d` -> `Parameter.value[:] = %d`", param->name, c_str, c_str, c_str);
+			PyErr_Format(PyExc_IndexError, "Use `[:]` to set all indices (of `%s`) from a single value (%s). i.e: `Parameter.value = 1` -> `Parameter.value[:] = 1`", param->name, c_str, c_str);
 			return NULL;
 		}
     }
