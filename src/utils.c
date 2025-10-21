@@ -378,8 +378,15 @@ ParameterObject * Parameter_wraps_param(param_t *param) {
 		because the GIL should still be held after returning. */
     assert(param != NULL);
 
-	PyObject *key AUTO_DECREF = PyLong_FromVoidPtr(param);
-    ParameterObject *python_param = (ParameterObject*)PyDict_GetItem((PyObject*)param_callback_dict, key);
+	/* PyCSH most likely not imported yet,
+		so no way this can be a Python ParameterObject */
+	if (param_callback_dict == NULL) {
+		return NULL;
+	}
+
+	PyObject * const key AUTO_DECREF = PyLong_FromVoidPtr(param);
+	assert(PyDict_Check(param_callback_dict));
+    ParameterObject * const python_param = (ParameterObject*)PyDict_GetItem((PyObject*)param_callback_dict, key);
 
 	return python_param;
 }

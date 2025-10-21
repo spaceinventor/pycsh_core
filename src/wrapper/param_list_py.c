@@ -5,8 +5,12 @@
  *
  */
 
+#include <pycsh/param_list_py.h>
+
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+
+#include <assert.h>
 
 #include <param/param_string.h>
 #include <param/param_list.h>
@@ -144,9 +148,12 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
 }
 
 /**
- * @brief Version of param_list_remove() that will not destroy param_t's referenced by a ParameterObject wrapper.
+ * @brief Version of `libparam`s `param_list_remove()` that will not destroy `param_t`s referenced by a `ParameterObject` wrapper.
  */
-static int param_list_remove_py(int node, uint8_t verbose) {
+int param_list_remove_py(int node, uint8_t verbose) {
+
+    assert(Py_IsInitialized());
+    PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
 
 	int count = 0;
 
@@ -163,8 +170,9 @@ static int param_list_remove_py(int node, uint8_t verbose) {
 
 		uint8_t match = node < 0;  // -1 means all nodes (except for 0)
 
-		if (node > 0)
+		if (node > 0) {
 			match = *param->node == node;
+        }
 
 		if (match) {
             ParameterObject *python_parameter = Parameter_wraps_param(param);
