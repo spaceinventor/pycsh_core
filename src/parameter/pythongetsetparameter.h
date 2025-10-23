@@ -1,5 +1,5 @@
 /*
- * pythonparameter.h
+ * pythongetsetparameter.h
  *
  * Contains the PythonParameter Parameter subclass.
  *
@@ -12,7 +12,7 @@
 
 #include <param/param.h>
 
-#include <pycsh/pythonparameter.h>
+#include <pycsh/parameter.h>
 
 /* TODO Kevin: If we wish to remain in line with PyExc_ParamCallbackError,
     Getter/Setter exceptions should be created. */
@@ -20,7 +20,7 @@
 //extern PyObject * PyExc_ParamSetterError;
 
 typedef struct {
-    PythonParameterObject parameter_object;
+    ParameterObject parameter_object;
     PyObject *getter_func;
     PyObject *setter_func;
 

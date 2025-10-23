@@ -40,7 +40,6 @@
 #include <pycsh/utils.h>
 
 #include <pycsh/parameter.h>
-#include <pycsh/pythonparameter.h>
 #include "parameter/pythongetsetparameter.h"
 #include "parameter/parameterlist.h"
 #include "parameter/valueproxy.h"
@@ -324,8 +323,15 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
         return NULL;
 	}
 
-	if (PyModule_AddType(pycsh, &PythonParameterType) < 0) {
-        return NULL;
+	/* Install `@classmethod`s into Parameter */
+	for (size_t i = 0; i<sizeof(Parameter_class_methods)/sizeof(Parameter_class_methods[0]); i++) {
+		PyMethodDef* classmethod_def = &Parameter_class_methods[i];
+		assert(classmethod_def->ml_flags & METH_CLASS);
+		PyObject *classmethod AUTO_DECREF = PyDescr_NewClassMethod(&ParameterType, classmethod_def);
+		assert(classmethod);
+		const int res = PyDict_SetItemString(ParameterType.tp_dict, classmethod_def->ml_name, classmethod);
+		assert(res == 0);
+		(void)res;
 	}
 
 	if (PyModule_AddType(pycsh, &PythonGetSetParameterType) < 0) {
