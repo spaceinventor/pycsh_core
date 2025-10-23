@@ -236,6 +236,9 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
+    /* TODO Kevin: Find a closed-loop way to wait for the ZMQ connection to come online. */
+    usleep(300000);
+
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
