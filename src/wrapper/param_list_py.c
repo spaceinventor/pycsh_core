@@ -168,10 +168,19 @@ int param_list_remove_py(int node, uint8_t verbose) {
 		if (i.phase == 0)  // Protection against removing static parameters
 			continue;
 
-		uint8_t match = node < 0;  // -1 means all nodes (except for 0)
+		bool match = false;  
 
-		if (node > 0) {
-			match = *param->node == node;
+        if (*param->node <= 0) {
+            /* It is technically possible to remove a `list add`ed parameter.
+                But not a `PARAM_DEFINE_STATIC_RAM()` parameter added by an APM.
+                I also believe `param_is_static()` returns false for APM parameters.
+                So for now we simply won't allow removing local parameters at all. */
+            match = false;
+        } else if (node < 0) {
+            /* -1 means all nodes (except for 0) */
+            match = true;
+        } else if (*param->node == node) {
+			match = true;
         }
 
 		if (match) {
@@ -184,6 +193,7 @@ int param_list_remove_py(int node, uint8_t verbose) {
                 before a Parameter() manages to grab a reference to it. */ 
             if (python_parameter) {
                 param_list_remove_specific(param, verbose, 0);
+                /*TODO Kevin: Remove this `Py_DECREF()` when we merge `merge_pythonparameter_into_parameter`. */
                 Py_DECREF(python_parameter);  // The parameter list no longer holds a reference to the Parameter
             } else {
                 param_list_remove_specific(param, verbose, 1);
