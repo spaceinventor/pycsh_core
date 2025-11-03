@@ -556,7 +556,7 @@ bool is_valid_callback(const PyObject *callback, bool raise_exc) {
         PyObject *param_name = PyTuple_GetItem(param_names, 1);
         if (!param_name) {
             if (raise_exc)
-                PyErr_SetString(PyExc_IndexError, "Could not get first parameter name");
+                PyErr_SetString(PyExc_IndexError, "Could not get second parameter name");
             return false;
         }
 
@@ -712,7 +712,7 @@ void Parameter_callback(param_t * param, int offset) {
         return;
     }
 
-    assert(PyCallable_Check(python_callback));
+    assert(is_valid_callback(python_callback, false));
     /* Create the arguments. */
     PyObject *pyoffset AUTO_DECREF = Py_BuildValue("i", offset);
     PyObject * args AUTO_DECREF = PyTuple_Pack(2, python_param, pyoffset);

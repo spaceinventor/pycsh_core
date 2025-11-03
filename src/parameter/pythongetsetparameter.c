@@ -426,7 +426,7 @@ static bool is_valid_setter(const PyObject *setter, bool raise_exc) {
         PyObject *param_name = PyTuple_GetItem(param_names, 1);
         if (!param_name) {
             if (raise_exc)
-                PyErr_SetString(PyExc_IndexError, "Could not get first parameter name");
+                PyErr_SetString(PyExc_IndexError, "Could not get second parameter name");
             return false;
         }
 
