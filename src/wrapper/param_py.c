@@ -133,10 +133,11 @@ PyObject * pycsh_param_pull(PyObject * self, PyObject * args, PyObject * kwds) {
 	PyObject * include_mask_obj = NULL;
 	PyObject * exclude_mask_obj = NULL;
 	int paramver = 2;
+	PyObject * decoding_error_callback = NULL;
 
-	static char *kwlist[] = {"node", "timeout", "include_mask", "exclude_mask", "paramver", NULL};
+	static char *kwlist[] = {"node", "timeout", "include_mask", "exclude_mask", "paramver", "decoding_error_callback", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|IIOOi:pull", kwlist, &node, &timeout, &include_mask_obj, &exclude_mask_obj, &paramver)) {
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|IIOOiO:pull", kwlist, &node, &timeout, &include_mask_obj, &exclude_mask_obj, &paramver, &decoding_error_callback)) {
 		return NULL;
 	}
 
@@ -155,13 +156,12 @@ PyObject * pycsh_param_pull(PyObject * self, PyObject * args, PyObject * kwds) {
 		}
 	}
 
-	int param_pull_res;
-	Py_BEGIN_ALLOW_THREADS;
-			param_pull_res = param_pull_all(CSP_PRIO_NORM, 1, node, include_mask, exclude_mask, timeout, paramver);
-	Py_END_ALLOW_THREADS;
+	int param_pull_res = pycsh_param_pull_all(CSP_PRIO_NORM, 1, node, include_mask, exclude_mask, timeout, paramver, decoding_error_callback);
 
 	if (param_pull_res) {
-		PyErr_SetString(PyExc_ConnectionError, "No response.");
+		if (!PyErr_Occurred()) {
+			PyErr_SetString(PyExc_ConnectionError, "No response.");
+		}
 		return NULL;
 	}
 

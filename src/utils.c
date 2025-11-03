@@ -438,6 +438,10 @@ typedef struct param_list_s {
 /* Do not apply parameters to the global list, only use the provided one */
 static void pycsh_param_queue_apply_listless(param_queue_t * queue, param_list_t * param_list, int from, bool skip_list) {
 
+	if (param_list == NULL) {
+		return;  /* No list to apply to. */
+	}
+
     int atomic_write = 0;
 	for (size_t i = 0; i < param_list->cnt; i++) {  /* Apply value to provided param_t* if they aren't in the list. */
 		param_t * param = param_list->param_arr[i];
@@ -527,6 +531,307 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 	pycsh_param_queue_apply_listless(&queue, param_list, from, true);
 
 	csp_buffer_free(response);
+}
+
+typedef struct pycsh_param_decode_err_context_s {
+	param_decode_err_callback_f err_callback;
+	PyObject * py_err_callback;
+
+	/* If this is not NULL, and a callback needs Python, it should call:
+		```
+		PyEval_RestoreThread(...->threads_suspended);
+		...->threads_suspended = NULL;  // Signal to the caller that the GIL has already been 'resumed'
+		``` */
+	PyThreadState * threads_suspended;
+} pycsh_param_decode_err_context_t;
+static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, int version, pycsh_param_decode_err_context_t * err_context) {
+
+	assert(err_context != NULL);
+
+	int from = response->id.src;
+	//csp_hex_dump("pull response", response->data, response->length);
+	//printf("From %d\n", from);
+
+	param_queue_t queue;
+	csp_timestamp_t time_now;
+	csp_clock_get_time(&time_now);
+	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
+	queue.last_node = response->id.src;
+	queue.client_timestamp = time_now;
+	queue.last_timestamp = queue.client_timestamp;
+
+	/* Even though we have been provided a `param_t * param`,
+		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
+		Although we are SOL if those unexpected parameters are not in the list.
+		TODO Kevin: Make sure ParameterList accounts for this scenario. */
+	param_queue_apply_err_callback(&queue, from, err_context->err_callback, err_context);
+
+#if 0
+	/* For now we tolerate possibly setting parameters twice,
+		as we have not had remote parameters with callbacks/side-effects yet.
+		Although it is possible, I have tested it.
+		We `assert()` that `pycsh_param_transaction_callback_pull()` is only used client-side.
+		So PyCSH parameter servers will only use `param_queue_apply()` to apply parameters,
+		meaning no worries about callbacks being set twice. */
+	pycsh_param_queue_apply_listless(&queue, param_list, from, true);
+#endif
+
+	csp_buffer_free(response);
+}
+
+
+/**
+ * @brief Check that the callback accepts exactly one Parameter and one integer,
+ *  as specified by "void (*callback)(struct param_s * param, int offset)"
+ * 
+ * Currently also checks type-hints (if specified).
+ * Additional optional arguments are also allowed,
+ *  as these can be disregarded by the caller.
+ * 
+ * @param callback function to check
+ * @param raise_exc Whether to set exception message when returning false.
+ * @return true for success
+ */
+bool is_valid_err_callback(const PyObject *callback, bool raise_exc) {
+
+    /*We currently allow both NULL and Py_None,
+            as those are valid to have on PythonParameterObject */
+    if (callback == NULL || callback == Py_None) {
+        return true;
+    }
+
+    // Suppress the incompatible pointer type warning when AUTO_DECREF is used on subclasses of PyObject*
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+
+    // Get the __code__ attribute of the function, and check that it is a PyCodeObject
+    // TODO Kevin: Hopefully it's safe to assume that PyObject_GetAttrString() won't mutate callback
+    PyCodeObject *func_code AUTO_DECREF = (PyCodeObject*)PyObject_GetAttrString((PyObject*)callback, "__code__");
+    if (!func_code || !PyCode_Check(func_code)) {
+        if (raise_exc)
+            PyErr_SetString(PyExc_TypeError, "Provided callback must be callable");
+        return false;
+    }
+
+    int accepted_pos_args = pycsh_get_num_accepted_pos_args(callback, raise_exc);
+    if (accepted_pos_args < 2) {
+        if (raise_exc)
+            PyErr_SetString(PyExc_TypeError, "Provided callback must accept at least 2 positional arguments");
+        return false;
+    }
+
+    // Check for too many required arguments
+    int num_non_default_pos_args = pycsh_get_num_required_args(callback, raise_exc);
+    if (num_non_default_pos_args > 2) {
+        if (raise_exc)
+            PyErr_SetString(PyExc_TypeError, "Provided callback must not require more than 2 positional arguments");
+        return false;
+    }
+
+    // Get the __annotations__ attribute of the function
+    // TODO Kevin: Hopefully it's safe to assume that PyObject_GetAttrString() won't mutate callback
+    PyDictObject *func_annotations AUTO_DECREF = (PyDictObject *)PyObject_GetAttrString((PyObject*)callback, "__annotations__");
+
+    // Re-enable the warning
+    #pragma GCC diagnostic pop
+
+    assert(PyDict_Check(func_annotations));
+    if (!func_annotations) {
+        return true;  // It's okay to not specify type-hints for the callback.
+    }
+
+    // Get the parameters annotation
+    // PyCode_GetVarnames() exists and should be exposed, but it doesn't appear to be in any visible header.
+    PyObject *param_names AUTO_DECREF = PyObject_GetAttrString((PyObject*)func_code, "co_varnames");// PyCode_GetVarnames(func_code);
+    if (!param_names) {
+        return true;  // Function parameters have not been annotated, this is probably okay.
+    }
+
+    // Check if it's a tuple
+    if (!PyTuple_Check(param_names)) {
+        // TODO Kevin: Not sure what exception to set here.
+        if (raise_exc)
+            PyErr_Format(PyExc_TypeError, "param_names type \"%s\" %p", param_names->ob_type->tp_name, param_names);
+        return false;  // Not sure when this fails, but it's probably bad if it does.
+    }
+
+    PyObject *typing_module_name AUTO_DECREF = PyUnicode_FromString("typing");
+    if (!typing_module_name) {
+        return false;
+    }
+
+    PyObject *typing_module AUTO_DECREF = PyImport_Import(typing_module_name);
+    if (!typing_module) {
+        if (raise_exc)
+            PyErr_SetString(PyExc_ImportError, "Failed to import typing module");
+        return false;
+    }
+
+#if 1
+    PyObject *get_type_hints AUTO_DECREF = PyObject_GetAttrString(typing_module, "get_type_hints");
+    if (!get_type_hints) {
+        if (raise_exc)
+            PyErr_SetString(PyExc_ImportError, "Failed to get 'get_type_hints()' function");
+        return false;
+    }
+    assert(PyCallable_Check(get_type_hints));
+
+
+    PyObject *type_hint_dict AUTO_DECREF = PyObject_CallFunctionObjArgs(get_type_hints, callback, NULL);
+
+#else
+
+    PyObject *get_type_hints_name AUTO_DECREF = PyUnicode_FromString("get_type_hints");
+    if (!get_type_hints_name) {
+        return false;
+    }
+
+    PyObject *type_hint_dict AUTO_DECREF = PyObject_CallMethodObjArgs(typing_module, get_type_hints_name, callback, NULL);
+    if (!type_hint_dict) {
+        if (raise_exc)
+            PyErr_SetString(PyExc_ImportError, "Failed to get type hints of callback");
+        return false;
+    }
+#endif
+
+    // TODO Kevin: Perhaps issue warnings for type-hint errors, instead of errors.
+    {   // Checking first parameter type-hint
+
+        // co_varnames may be too short for our index, if the signature has *args, but that's okay.
+        if (PyTuple_Size(param_names)-1 <= 0) {
+            return true;
+        }
+
+        PyObject *param_name = PyTuple_GetItem(param_names, 0);
+        if (!param_name) {
+            if (raise_exc)
+                PyErr_SetString(PyExc_IndexError, "Could not get first parameter name");
+            return false;
+        }
+
+        PyObject *param_annotation = PyDict_GetItem(type_hint_dict, param_name);
+        if (param_annotation != NULL && param_annotation != Py_None) {
+            if (!PyType_Check(param_annotation)) {
+                if (raise_exc)
+                    PyErr_Format(PyExc_TypeError, "First parameter annotation is %s, which is not a type", param_annotation->ob_type->tp_name);
+                return false;
+            }
+            if (!PyObject_IsSubclass(param_annotation, (PyObject *)&PyLong_Type)) {
+                if (raise_exc)
+                    PyErr_Format(PyExc_TypeError, "First callback parameter should be type-hinted as int node. (not %s)", param_annotation->ob_type->tp_name);
+                return false;
+            }
+        }
+    }
+
+    {   // Checking second parameter type-hint
+
+        // co_varnames may be too short for our index, if the signature has *args, but that's okay.
+        if (PyTuple_Size(param_names)-1 <= 1) {
+            return true;
+        }
+
+        PyObject *param_name = PyTuple_GetItem(param_names, 1);
+        if (!param_name) {
+            if (raise_exc)
+                PyErr_SetString(PyExc_IndexError, "Could not get second parameter name");
+            return false;
+        }
+
+        PyObject *param_annotation = PyDict_GetItem(type_hint_dict, param_name);
+        if (param_annotation != NULL && param_annotation != Py_None) {
+            if (!PyType_Check(param_annotation)) {
+                if (raise_exc)
+                    PyErr_Format(PyExc_TypeError, "Second parameter annotation is %s, which is not a type", param_annotation->ob_type->tp_name);
+                return false;
+            }
+            if (!PyObject_IsSubclass(param_annotation, (PyObject *)&PyLong_Type)) {
+                if (raise_exc)
+                    PyErr_Format(PyExc_TypeError, "Second callback parameter should be type-hinted as int id. (not %s)", param_annotation->ob_type->tp_name);
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+
+static void pycsh_decode_err_callback(uint16_t node, uint16_t id, pycsh_param_decode_err_context_t * context) {
+	if (!context || !context->py_err_callback) {
+		return;
+	}
+
+	if (context->threads_suspended) {
+		/* We make an attempt to use the macros here,
+			in case the functions the use change in the future. */
+		PyThreadState * _save = context->threads_suspended;
+		Py_BLOCK_THREADS;
+		printf("THREADS RESUMED\n");
+		context->threads_suspended = NULL;
+	}
+
+	assert(is_valid_err_callback(context->py_err_callback, false));
+
+	assert(!PyErr_Occurred());
+	PyObject *args AUTO_DECREF = Py_BuildValue("ii", node, id);
+    //PyObject * args AUTO_DECREF = PyTuple_Pack(2, python_param, pyoffset);
+    /* Call the user Python callback */
+    PyObject *value AUTO_DECREF = PyObject_CallObject(context->py_err_callback, args);
+
+	/* TODO Kevin: Does it make sense to leave the exception for later?
+		We will continue to call the callback for other parameters anyway, so we may end up stacking many exceptions. */
+	PyErr_Print();
+}
+
+
+int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask, uint32_t exclude_mask, int timeout, int version, PyObject * py_err_callback) {
+
+	if (!py_err_callback) {
+		int res;
+		Py_BEGIN_ALLOW_THREADS;
+		res = param_pull_all(prio, verbose, host, include_mask, exclude_mask, timeout, version);
+		Py_END_ALLOW_THREADS;
+		return res;
+	}
+
+	if (!is_valid_err_callback(py_err_callback, true)) {
+		return -10;
+	}
+
+	/* Allow threads, at least until a callback needs them. */
+	PyThreadState * Py_UNBLOCK_THREADS;
+	
+
+	pycsh_param_decode_err_context_t err_context = {
+		.err_callback = (param_decode_err_callback_f)pycsh_decode_err_callback,
+		.py_err_callback = py_err_callback,
+
+		.threads_suspended = _save,  /* Created when expanding `Py_BEGIN_ALLOW_THREADS` or `Py_UNBLOCK_THREADS` */
+	};
+
+	csp_packet_t *packet = csp_buffer_get(PARAM_SERVER_MTU);
+	if (packet == NULL) {
+		return -2;
+	}
+	if (version == 2) {
+		packet->data[0] = PARAM_PULL_ALL_REQUEST_V2;
+	} else {
+		packet->data[0] = PARAM_PULL_ALL_REQUEST;
+	}
+	packet->data[1] = 0;
+	packet->data32[1] = htobe32(include_mask);
+	packet->data32[2] = htobe32(exclude_mask);
+	packet->length = 12;
+	packet->id.pri = prio;
+	const int res = param_transaction(packet, host, timeout, (param_transaction_callback_f)pycsh_param_pull_all_callback, verbose, version, &err_context);
+
+	if (err_context.threads_suspended) {
+		Py_BLOCK_THREADS;  /* Threads did not resume in callback. */
+	}
+
+	return res;
+
 }
 
 

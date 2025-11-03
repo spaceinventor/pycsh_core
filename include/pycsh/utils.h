@@ -120,6 +120,8 @@ ParameterObject * Parameter_wraps_param(param_t *param);
    Supports Python backwards subscriptions, mutates the index to a positive value in such cases. */
 int _pycsh_util_index(int seqlen, int *index);
 
+int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask, uint32_t exclude_mask, int timeout, int version, PyObject * py_err_callback);
+
 /**
  * @brief Convert a python str og int parameter mask to the uint32_t C equivalent.
  * 
