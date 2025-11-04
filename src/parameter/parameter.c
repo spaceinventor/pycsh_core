@@ -174,7 +174,7 @@ static PyObject * Parameter_get_node(ParameterObject *self, void *closure) {
 static PyObject * Parameter_get_storage_type(ParameterObject *self, void *closure) {
     assert(self->param);
     if (self->param->vmem == NULL) {
-        Py_BuildValue("i", (int)VMEM_TYPE_UNKNOWN);
+        return Py_BuildValue("i", (int)VMEM_TYPE_UNKNOWN);
     }
 	return Py_BuildValue("i", self->param->vmem->type);
 }
