@@ -55,7 +55,7 @@ PyObject * pycsh_param_list_download(PyObject * self, PyObject * args, PyObject 
 
     unsigned int node = pycsh_dfl_node;
     unsigned int timeout = pycsh_dfl_timeout;
-    unsigned int version = 2;
+    unsigned int version = 3;
     int include_remotes = 0;
 
     static char *kwlist[] = {"node", "timeout", "version", "remotes", NULL};
