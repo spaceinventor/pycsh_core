@@ -56,12 +56,13 @@ PyObject * pycsh_param_list_download(PyObject * self, PyObject * args, PyObject 
     unsigned int node = pycsh_dfl_node;
     unsigned int timeout = pycsh_dfl_timeout;
     unsigned int version = 3;
-    int include_remotes = 0;
+    int include_remotes = false;
 
-    static char *kwlist[] = {"node", "timeout", "version", "remotes", NULL};
+    static char *kwlist[] = {"node", "timeout", "version", "remote", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|IIII:list_download", kwlist, &node, &timeout, &version, &include_remotes))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|IIIp:list_download", kwlist, &node, &timeout, &version, &include_remotes)) {
         return NULL;  // TypeError is thrown
+    }
 
     {  /* Allow threads during list_download() */
         int list_download_res;
