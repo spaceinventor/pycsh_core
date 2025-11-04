@@ -172,7 +172,11 @@ static PyObject * Parameter_get_node(ParameterObject *self, void *closure) {
 }
 
 static PyObject * Parameter_get_storage_type(ParameterObject *self, void *closure) {
-	return Py_BuildValue("H", self->param->vmem->type);
+    assert(self->param);
+    if (self->param->vmem == NULL) {
+        return Py_BuildValue("i", (int)VMEM_TYPE_UNKNOWN);
+    }
+	return Py_BuildValue("i", self->param->vmem->type);
 }
 
 /* This will change self->param to be one by the same name at the specified node. */

@@ -72,3 +72,8 @@ pycsh_core_dep = declare_dependency(
 	include_directories: [include_dir],
 	dependencies: dependencies
 )
+
+py = import('python').find_installation('python'+get_option('python3_version'), pure: false)
+# Add .pyi file for type-hints
+pyi = configure_file(input: 'pycsh.pyi', output: 'pycsh.pyi', copy: true)
+py.install_sources([pyi], subdir: 'pycsh')
