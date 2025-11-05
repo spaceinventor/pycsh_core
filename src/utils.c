@@ -534,7 +534,7 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 }
 
 typedef struct pycsh_param_decode_err_context_s {
-	param_decode_err_callback_f err_callback;
+	param_decode_callback_f err_callback;
 	PyObject * py_err_callback;
 
 	/* If this is not NULL, and a callback needs Python, it should call:
@@ -564,17 +564,36 @@ static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, i
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
 		Although we are SOL if those unexpected parameters are not in the list.
 		TODO Kevin: Make sure ParameterList accounts for this scenario. */
-	param_queue_apply_err_callback(&queue, from, err_context->err_callback, err_context);
+	param_queue_apply_w_callback(&queue, from, err_context->err_callback, err_context);
 
-#if 0
-	/* For now we tolerate possibly setting parameters twice,
-		as we have not had remote parameters with callbacks/side-effects yet.
-		Although it is possible, I have tested it.
-		We `assert()` that `pycsh_param_transaction_callback_pull()` is only used client-side.
-		So PyCSH parameter servers will only use `param_queue_apply()` to apply parameters,
-		meaning no worries about callbacks being set twice. */
-	pycsh_param_queue_apply_listless(&queue, param_list, from, true);
-#endif
+	if (!verbose) {
+		csp_buffer_free(response);
+		return;
+	}
+	/* Loop over paramid's in pull response */
+	mpack_reader_t reader;
+	mpack_reader_init_data(&reader, queue.buffer, queue.used);
+	if(reader.data == reader.end) {
+		printf("No parameters returned in response\n");
+		csp_buffer_free(response);
+		return;
+	}
+	while(reader.data < reader.end) {
+		int id, node, offset = -1;
+		csp_timestamp_t timestamp = { .tv_sec = 0, .tv_nsec = 0 };
+		param_deserialize_id(&reader, &id, &node, &timestamp, &offset, &queue);
+		if (node == 0)
+			node = response->id.src;
+		param_t * param = param_list_find_id(node, id);
+
+		/* We need to discard the data field, to get to next paramid */
+		mpack_discard		(&reader);
+
+		/* Print the local RAM copy of the remote parameter */
+		if (param) {
+			param_print(param, -1, NULL, 0, verbose, 0);
+		}
+	}
 
 	csp_buffer_free(response);
 }
@@ -767,7 +786,6 @@ static void pycsh_decode_err_callback(uint16_t node, uint16_t id, pycsh_param_de
 			in case the functions the use change in the future. */
 		PyThreadState * _save = context->threads_suspended;
 		Py_BLOCK_THREADS;
-		printf("THREADS RESUMED\n");
 		context->threads_suspended = NULL;
 	}
 
@@ -802,9 +820,8 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
 	/* Allow threads, at least until a callback needs them. */
 	PyThreadState * Py_UNBLOCK_THREADS;
 	
-
 	pycsh_param_decode_err_context_t err_context = {
-		.err_callback = (param_decode_err_callback_f)pycsh_decode_err_callback,
+		.err_callback = (param_decode_callback_f)pycsh_decode_err_callback,
 		.py_err_callback = py_err_callback,
 
 		.threads_suspended = _save,  /* Created when expanding `Py_BEGIN_ALLOW_THREADS` or `Py_UNBLOCK_THREADS` */
