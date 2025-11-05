@@ -822,7 +822,7 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
 		.vanilla_context = {
 			.verbose = verbose,
 			.debug_print_level = param_queue_dbg_level,
-		}
+		},
 		.err_callback = (param_decode_callback_f)pycsh_decode_err_callback,
 		.py_err_callback = py_err_callback,
 
