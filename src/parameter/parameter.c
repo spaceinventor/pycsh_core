@@ -18,6 +18,7 @@
 
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
+#include <pycsh/attr_malloc.h>
 
 #include "valueproxy.h"
 
@@ -745,7 +746,7 @@ void Parameter_callback(param_t * param, int offset) {
 }
 
 /* Internal API for creating an entirely new ParameterObject. */
-__attribute__((malloc(Parameter_dealloc, 1)))
+ATTR_MALLOC(Parameter_dealloc, 1)
 ParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, param_type_e param_type, uint32_t mask, char * name, char * unit, char * docstr, int array_size, const PyObject * callback, int host, int timeout, int retries, int paramver) {
 
     /* Check for valid parameter type. param_list_create_remote() should always return NULL for errors,

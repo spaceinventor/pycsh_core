@@ -12,6 +12,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "attr_malloc.h"
 #include <dirent.h>
 #include <param/param.h>
 #include <param/param_queue.h>
@@ -33,7 +34,7 @@ void state_release_GIL(PyThreadState ** state);
 #define CLEANUP_GIL __attribute__((cleanup(cleanup_GIL)))
 #define AUTO_DECREF __attribute__((cleanup(cleanup_pyobject)))
 
-__attribute__((malloc(free, 1)))
+ATTR_MALLOC(free, 1)
 char *safe_strdup(const char *s);
 
 /* Source: https://pythonextensionpatterns.readthedocs.io/en/latest/super_call.html */

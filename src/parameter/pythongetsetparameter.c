@@ -17,6 +17,7 @@
 
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
+#include <pycsh/attr_malloc.h>
 
 #include "pycshconfig.h"
 
@@ -561,7 +562,7 @@ int Parameter_set_setter(PythonGetSetParameterObject *self, PyObject *value, voi
     return 0;
 }
 
-__attribute__((malloc(PythonGetSetParameter_dealloc, 1)))
+ATTR_MALLOC(PythonGetSetParameter_dealloc, 1)
 static PyObject * PythonGetSetParameter_new(PyTypeObject *type, PyObject * args, PyObject * kwds) {
 
     uint16_t id;

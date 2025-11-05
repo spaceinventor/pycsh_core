@@ -19,6 +19,7 @@
 
 #include <pycsh/pycsh.h>
 #include <pycsh/parameter.h>
+#include <pycsh/attr_malloc.h>
 #include "parameter/parameterlist.h"
 
 #undef NDEBUG
@@ -68,7 +69,7 @@ void state_release_GIL(PyThreadState ** state) {
     *state = PyEval_SaveThread();
 }
 
-__attribute__((malloc(free, 1)))
+ATTR_MALLOC(free, 1)
 __attribute__((weak)) 
 char *safe_strdup(const char *s) {
     if (s == NULL) {

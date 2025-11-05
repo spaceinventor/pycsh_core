@@ -16,6 +16,7 @@
 
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
+#include <pycsh/attr_malloc.h>
 #include <apm/csh_api.h>
 
 
@@ -90,7 +91,7 @@ static void csp_buffer_cleanup(csp_packet_t ** packet) {
     csp_buffer_free(*packet);
 }
 
-__attribute__((malloc(Ident_dealloc, 1)))
+ATTR_MALLOC(Ident_dealloc, 1)
 static PyObject * Ident_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 
     static char *kwlist[] = {"node", "timeout", "override", NULL};

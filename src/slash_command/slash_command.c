@@ -16,6 +16,7 @@
 #include "python_slash_command.h"
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
+#include <pycsh/attr_malloc.h>
 
 
 /* 1 for success. Compares the wrapped slash_command (struct) between two SlashCommands, otherwise 0. Assumes self to be a SlashCommandObject. */
@@ -59,7 +60,7 @@ static void SlashCommand_dealloc(SlashCommandObject *self) {
 	// Get the type of 'self' in case the user has subclassed 'SlashCommand'.
 	Py_TYPE(self)->tp_free((PyObject *) self);
 }
-__attribute__((malloc(SlashCommand_dealloc, 1)))
+ATTR_MALLOC(SlashCommand_dealloc, 1)
 #endif
 static PyObject * SlashCommand_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 

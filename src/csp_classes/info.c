@@ -10,6 +10,7 @@
 #include "route.h"
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
+#include <pycsh/attr_malloc.h>
 #include <apm/csh_api.h>
 
 
@@ -42,7 +43,7 @@ static void Info_dealloc(InfoObject *self) {
     Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
-__attribute__((malloc(Info_dealloc, 1)))
+ATTR_MALLOC(Info_dealloc, 1)
 InfoObject * _Info_new_internal(void) {
 
 	#pragma GCC diagnostic push
@@ -66,7 +67,7 @@ InfoObject * _Info_new_internal(void) {
 	return (InfoObject*)Py_NewRef((PyObject*)self);
 }
 
-__attribute__((malloc(Info_dealloc, 1)))
+ATTR_MALLOC(Info_dealloc, 1)
 PyObject * Info_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 
     static char *kwlist[] = {NULL};
