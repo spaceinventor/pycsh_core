@@ -534,20 +534,28 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 	csp_buffer_free(response);
 }
 
-typedef struct pycsh_param_decode_err_context_s {
-	param_decode_err_callback_f err_callback;
+typedef struct pycsh_queue_apply_context_s {
+	param_queue_apply_context_t vanilla_context;  /* Original context from libparam */
+
+	param_decode_callback_f err_callback;
 	PyObject * py_err_callback;
 
-	/* If this is not NULL, and a callback needs Python, it should call:
+	/* TODO Kevin: Now that the callback is called for every parameter,
+		maybe we should accept a Python callback for that too?
+		Question is whether it should be a separate Python function,
+		or the same callback with different arguments, like in C?*/
+	//PyObject * py_err_callback;
+
+	/* If this is not NULL, and a callback needs to invoke Python, it should call:
 		```
 		PyEval_RestoreThread(...->threads_suspended);
-		...->threads_suspended = NULL;  // Signal to the caller that the GIL has already been 'resumed'
+		...->threads_suspended = NULL;  // Signal to the caller that the GIL has now been 'resumed'
 		``` */
 	PyThreadState * threads_suspended;
-} pycsh_param_decode_err_context_t;
-static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, int version, pycsh_param_decode_err_context_t * err_context) {
+} pycsh_queue_apply_context_t;
+static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, int version, pycsh_queue_apply_context_t * context) {
 
-	assert(err_context != NULL);
+	assert(context);
 
 	int from = response->id.src;
 	//csp_hex_dump("pull response", response->data, response->length);
@@ -565,17 +573,12 @@ static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, i
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
 		Although we are SOL if those unexpected parameters are not in the list.
 		TODO Kevin: Make sure ParameterList accounts for this scenario. */
-	param_queue_apply_err_callback(&queue, from, err_context->err_callback, err_context);
+	param_queue_apply_w_callback(&queue, from, context->err_callback, context);
 
-#if 0
-	/* For now we tolerate possibly setting parameters twice,
-		as we have not had remote parameters with callbacks/side-effects yet.
-		Although it is possible, I have tested it.
-		We `assert()` that `pycsh_param_transaction_callback_pull()` is only used client-side.
-		So PyCSH parameter servers will only use `param_queue_apply()` to apply parameters,
-		meaning no worries about callbacks being set twice. */
-	pycsh_param_queue_apply_listless(&queue, param_list, from, true);
-#endif
+	/* Should we always print error here, no matter `verbose`? */
+	if(verbose && !((param_queue_apply_context_t*)context)->num_unknown_params && !((param_queue_apply_context_t*)context)->num_known_params) {
+		printf("No parameters returned in response\n");
+	}
 
 	csp_buffer_free(response);
 }
@@ -758,8 +761,21 @@ bool is_valid_err_callback(const PyObject *callback, bool raise_exc) {
 }
 
 
-static void pycsh_decode_err_callback(uint16_t node, uint16_t id, pycsh_param_decode_err_context_t * context) {
-	if (!context || !context->py_err_callback) {
+static void pycsh_decode_err_callback(uint16_t node, uint16_t id, uint8_t debug_level, param_t * param, pycsh_queue_apply_context_t * context) {
+
+	if (!context) {
+		return;
+	}
+	/* Call the original callback, to get error and normal prints. */
+	param_queue_apply_callback(node, id, debug_level, param, &context->vanilla_context);
+
+	if (param) {
+		/* This parameter was successfully decoded,
+			but this callback is only for errors... for now. */
+		return;
+	}
+
+	if (!context->py_err_callback) {
 		return;
 	}
 
@@ -768,7 +784,6 @@ static void pycsh_decode_err_callback(uint16_t node, uint16_t id, pycsh_param_de
 			in case the functions the use change in the future. */
 		PyThreadState * _save = context->threads_suspended;
 		Py_BLOCK_THREADS;
-		printf("THREADS RESUMED\n");
 		context->threads_suspended = NULL;
 	}
 
@@ -781,7 +796,8 @@ static void pycsh_decode_err_callback(uint16_t node, uint16_t id, pycsh_param_de
     PyObject *value AUTO_DECREF = PyObject_CallObject(context->py_err_callback, args);
 
 	/* TODO Kevin: Does it make sense to leave the exception for later?
-		We will continue to call the callback for other parameters anyway, so we may end up stacking many exceptions. */
+		We will continue to call the callback for other parameters anyway,
+		so we could end up stacking many exceptions. */
 	PyErr_Print();
 }
 
@@ -803,12 +819,16 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
 	/* Allow threads, at least until a callback needs them. */
 	PyThreadState * Py_UNBLOCK_THREADS;
 	
-
-	pycsh_param_decode_err_context_t err_context = {
-		.err_callback = (param_decode_err_callback_f)pycsh_decode_err_callback,
+	pycsh_queue_apply_context_t context = {
+		.vanilla_context = {
+			.verbose = verbose,
+			.debug_print_level = param_queue_dbg_level,
+		},
+		.err_callback = (param_decode_callback_f)pycsh_decode_err_callback,
 		.py_err_callback = py_err_callback,
 
 		.threads_suspended = _save,  /* Created when expanding `Py_BEGIN_ALLOW_THREADS` or `Py_UNBLOCK_THREADS` */
+		
 	};
 
 	csp_packet_t *packet = csp_buffer_get(PARAM_SERVER_MTU);
@@ -825,9 +845,9 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
 	packet->data32[2] = htobe32(exclude_mask);
 	packet->length = 12;
 	packet->id.pri = prio;
-	const int res = param_transaction(packet, host, timeout, (param_transaction_callback_f)pycsh_param_pull_all_callback, verbose, version, &err_context);
+	const int res = param_transaction(packet, host, timeout, (param_transaction_callback_f)pycsh_param_pull_all_callback, verbose, version, &context);
 
-	if (err_context.threads_suspended) {
+	if (context.threads_suspended) {
 		Py_BLOCK_THREADS;  /* Threads did not resume in callback. */
 	}
 
