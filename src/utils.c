@@ -2006,14 +2006,16 @@ int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout
 		
 		// 'item' is a borrowed reference, so we don't need to decrement it.
 	}
-
-	param_queue_print(&queue);
 	
 	if (host != 0) {
 		if (param_push_queue(&queue, 1, 0, host, 100, 0, false) < 0) {  // TODO Kevin: We should probably have a parameter for hwid here.
 			PyErr_Format(PyExc_ConnectionError, "No response from node %d", *param->node);
 			return -6;
 		}
+	}
+
+	if (verbose > 0) {
+		param_print(param, -1, NULL, 0, verbose, 0);
 	}
 	
 	return 0;
