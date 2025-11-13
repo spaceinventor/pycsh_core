@@ -41,14 +41,14 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 	int node = pycsh_dfl_node;
 	int server = INT_MIN;
 	int paramver = 2;
-	int offset = INT_MIN;  // Using INT_MIN as the least likely value as array Parameters should be backwards subscriptable like lists.
+	PyObject * offset = NULL;  // Using INT_MIN as the least likely value as array Parameters should be backwards subscriptable like lists.
 	int timeout = pycsh_dfl_timeout;
 	int retries = 1;
 	int verbose = pycsh_dfl_verbose;
 
 	static char *kwlist[] = {"param_identifier", "node", "server", "paramver", "offset", "timeout", "retries", "verbose", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|iiiiiii:get", kwlist, &param_identifier, &node, &server, &paramver, &offset, &timeout, &retries, &verbose))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|iiiOiii:get", kwlist, &param_identifier, &node, &server, &paramver, &offset, &timeout, &retries, &verbose))
 		return NULL;  // TypeError is thrown
 
 	param_t *param = _pycsh_util_find_param_t(param_identifier, node);
@@ -61,10 +61,13 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 	if (server > 0)
 		dest = server;
 
-	// _pycsh_util_get_single() and _pycsh_util_get_array() will return NULL for exceptions, which is fine with us.
-	if (param->array_size > 1 && param->type != PARAM_TYPE_STRING)
-		return _pycsh_util_get_array(param, 1, dest, timeout, retries, paramver, verbose);
-	return _pycsh_util_get_single(param, offset, 1, dest, timeout, retries, paramver, verbose);
+	const int c_idx = (offset && PyLong_Check(offset)) ? PyLong_AS_LONG(offset) : 0;
+
+	if ((!offset && param->array_size <= 1) || (offset && PyLong_Check(offset))) {
+		return _pycsh_util_get_single(param, c_idx, true, server, timeout, retries, paramver, verbose);
+	}
+
+	return _pycsh_util_get_array_indexes(param, offset, true, server, timeout, retries, paramver, verbose);
 }
 
 PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {

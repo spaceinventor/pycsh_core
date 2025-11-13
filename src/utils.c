@@ -1752,6 +1752,17 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 	param_queue_t queue = { };
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 
+	if (PyLong_Check(indexes)) {
+		/* Pack a tuple, so we can get an iterator which yields the index once.
+			Just so we can reuse the `while` loop below. */
+		assert((_indexes_newref == NULL) && "Already using `_indexes_newref` for other purposes");
+		_indexes_newref = PyTuple_Pack(1, indexes);
+		if (!_indexes_newref) {
+			assert(PyErr_Occurred());
+			return NULL;
+		}
+		indexes = _indexes_newref;
+	}
     
     PyObject * const indexes_iter AUTO_DECREF = PyObject_GetIter(indexes);
     if (!indexes_iter) {
@@ -1772,7 +1783,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
         }
 
         if (!value && !index) {
-            break;
+            break;  /* Exhausted iterable values and indexes at the same time, all good. */
         } else if (!index) {
 			if (!values_iter) {
 				break;  /* non-iterable value specified, don't require matching lengths. */

@@ -309,25 +309,16 @@ int ValueProxy_ass_subscript(ValueProxyObject *self, PyObject *key, PyObject* va
 		}
 		return (_pycsh_util_set_single(self->param, value, INT_MIN, self->host, self->timeout, self->retries, self->paramver, self->remote, self->verbose) < 0) ? -1 : 0;
 	}
-	
-	if (PyLong_Check(key)) {
-		return (_pycsh_util_set_single(self->param, value, PyLong_AS_LONG(key), self->host, self->timeout, self->retries, self->paramver, self->remote, self->verbose) < 0) ? -1 : 0;
-	}
 
-	/* Check if `key` is iterable by simply getting an iterator for it.
-		We could also `_pycsh_util_set_array_indexes()` raise a `TypeError`.
+	PyObject * AUTO_DECREF success = _pycsh_util_set_array_indexes(self->param, value, key, self->remote, self->host, self->timeout, self->retries, self->paramver, self->verbose);
+
+	/* We could also `_pycsh_util_set_array_indexes()` raise a `TypeError`.
 		But we can make the message a bit clearer by doing it ourselves. */
-	assert(!PyErr_Occurred());
-	PyObject *_iter AUTO_DECREF = PyObject_GetIter(key);
-	PyErr_Clear();
-
-	if (_iter || Py_IsNone(key) || PySlice_Check(key)) {
-		PyObject * AUTO_DECREF success = _pycsh_util_set_array_indexes(self->param, value, key, self->remote, self->host, self->timeout, self->retries, self->paramver, self->verbose);
-		return success ? 0 : -1;
+	if (PyErr_Occurred()) {
+		PyErr_Format(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None, not `%s`", key->ob_type->tp_name);
 	}
 
-	PyErr_Format(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None, not `%s`", key->ob_type->tp_name);
-	return -1;
+	return success ? 0 : -1;
 }
 
 static PyMappingMethods ValueProxy_as_mapping = {
