@@ -33,23 +33,28 @@ PyObject * pycsh_slash_ping(PyObject * self, PyObject * args, PyObject * kwds) {
     unsigned int node = pycsh_dfl_node;
     unsigned int timeout = pycsh_dfl_timeout;
     unsigned int size = 1;
+    int verbose = pycsh_dfl_verbose;
 
-    static char *kwlist[] = {"node", "timeout", "size", NULL};
+    static char *kwlist[] = {"node", "timeout", "size", "verbose", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|III:ping", kwlist, &node, &timeout, &size)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|IIIi:ping", kwlist, &node, &timeout, &size, &verbose)) {
         return NULL;  // TypeError is thrown
     }
 
     int result;
     Py_BEGIN_ALLOW_THREADS;
-    printf("Ping node %u size %u timeout %u: ", node, size, timeout);
+    if (verbose > 0) {
+        printf("Ping node %u size %u timeout %u: ", node, size, timeout);
+    }
 
     result = csp_ping(node, timeout, size, CSP_O_CRC32);
 
-    if (result >= 0) {
-        printf("Reply in %d [ms]\n", result);
-    } else {
-        printf("No reply\n");
+    if (verbose > 0) {
+        if (result >= 0) {
+            printf("Reply in %d [ms]\n", result);
+        } else {
+            printf("No reply\n");
+        }
     }
     Py_END_ALLOW_THREADS;
 

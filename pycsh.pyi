@@ -1137,7 +1137,7 @@ def info() -> Info:
 
 
 # Commands from CSP
-def ping(node: int = None, timeout: int = None, size: int = None) -> int:
+def ping(node: int = None, timeout: int = None, size: int = None, verbose: int = ...) -> int:
     """
     Ping the specified node.
 
