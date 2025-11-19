@@ -56,11 +56,6 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
 
-	/* Select destination, host overrides parameter node */
-	int dest = node;
-	if (server > 0)
-		dest = server;
-
 	const int c_idx = (offset && PyLong_Check(offset)) ? PyLong_AS_LONG(offset) : 0;
 
 	if ((!offset && param->array_size <= 1) || (offset && PyLong_Check(offset))) {
