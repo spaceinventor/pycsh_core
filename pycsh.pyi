@@ -1011,7 +1011,7 @@ def push(node: int, timeout: int = None, hwid: int = None, retries: int = None) 
     :raises ConnectionError: when no response is received.
     """
 
-def pull(node: int = None, timeout: int = None, include_mask: str | int = None, exclude_mask: str | int = None, paramver: int = None, decode_error_callback: _Callable[[int, int], None] = None) -> None:
+def pull(node: int = None, timeout: int = None, include_mask: str | int = None, exclude_mask: str | int = None, paramver: int = None, verbose: int = None, decode_error_callback: _Callable[[int, int], None] = None) -> None:
     """
     Pull all or a specific mask of parameters.
     
@@ -1020,6 +1020,7 @@ def pull(node: int = None, timeout: int = None, include_mask: str | int = None, 
     :param include_mask: `pycsh.PM_TELEM | pycsh.PM_DEBUG | pycsh.PM_CONF` or "tdc"
     :param exclude_mask: `pycsh.PM_TELEM | pycsh.PM_DEBUG | pycsh.PM_CONF` or "tdc"
     :param paramver: Pull with specific parameter (libparam) version, should almost always be left default.
+    :param verbose: How much to print, defaults to environment value.
     :param decode_error_callback: Callable which accepts (int) 2 positional arguments, i.e:
         def my_err_callback(node: int, id: int) -> None:
             ...
