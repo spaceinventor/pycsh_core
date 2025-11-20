@@ -91,8 +91,10 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
     char * helpstr = NULL;
     char * unitstr = NULL;
 
-    static char *kwlist[] = {"node", "length", "id", "name", "type", "mask", "comment", "unit", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIIsI|Ozz:list_add", kwlist, &node, &length, &id, &name, &type, &mask_obj, &helpstr, &unitstr)) {
+    int raise_exc = false;
+
+    static char *kwlist[] = {"node", "length", "id", "name", "type", "mask", "comment", "unit", "raise_exc", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIIsI|Ozzp:list_add", kwlist, &node, &length, &id, &name, &type, &mask_obj, &helpstr, &unitstr, &raise_exc)) {
         return NULL;
     }
 
@@ -131,26 +133,44 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
     /* This guard clause above only exists to provide a more specific error message than the ones below.
         We could remove this guard clause if we wanted. */
     const param_t * const existing_param = param_list_find_id(node, id);
-    if (existing_param) {
+    if (raise_exc && existing_param) {
         PyErr_Format(PyExc_LookupError, "Parameter om node %d and id %d already exists, by the name of '%s'", node, id, existing_param->name);
         return NULL;
     }
 
-    param_t * const param = param_list_create_remote(id, node, type, mask, length, name, unitstr, helpstr, -1);
+    param_t * param = param_list_create_remote(id, node, type, mask, length, name, unitstr, helpstr, -1);
+
+    if (param == NULL) {
+        PyErr_SetString(PyExc_MemoryError, "Unable to create `param_t`");
+        return NULL;
+    }
+
+    const int _list_add_res = param_list_add(param);
+    switch (_list_add_res) {
+        case 1: {  /* Updated existing parameter */
+            param_list_destroy(param);
+            param = existing_param;
+            break;  /* All good, carry on */
+        }
+        case 0: {
+            break;  /* All good, carry on */
+        }
+        default: {
+            PyErr_Format(PyExc_ValueError, "Failed to add parameter to list, err %d", _list_add_res); 
+            return NULL;
+        }
+    }
 
     PyObject * const param_instance AUTO_DECREF = pycsh_Parameter_from_param(&ParameterType, param, NULL, INT_MIN, pycsh_dfl_timeout, 1, 2, PY_PARAM_FREE_LIST_DESTROY);
 
     if (param_instance == NULL) {
-        if (param) {
-            param_list_destroy(param);
-        }
-        PyErr_SetString(PyExc_MemoryError, "Unable to create param");
+        /* There's a possibility that we update an existing `param_t` here, but then fail to create the `Parameter` wrapper,
+            giving this exception a side effect. But that is probably fine, the user was going to update the parameter anyway. */
+        /* But on the contrary, it's also possible that we `list add` a new `param_t` without creating the wrapper,
+            which is a more nasty side-effect. */
+        PyErr_SetString(PyExc_MemoryError, "Unable to create `pycsh.Parameter`");
         return NULL;
     }
-    if (param_list_add(param) != 0) {
-        PyErr_SetString(PyExc_ValueError, "Failed to add parameter to list"); 
-        return NULL;
-    }   
 
     return Py_NewRef(param_instance);
 }
