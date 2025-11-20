@@ -58,16 +58,17 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	/* Select destination, host overrides parameter node */
 	int dest = node;
-	if (server > 0)
+	if (server > 0) {
 		dest = server;
+	}
 
 	const int c_idx = (offset && PyLong_Check(offset)) ? PyLong_AS_LONG(offset) : 0;
 
 	if ((!offset && param->array_size <= 1) || (offset && PyLong_Check(offset))) {
-		return _pycsh_util_get_single(param, c_idx, true, server, timeout, retries, paramver, verbose);
+		return _pycsh_util_get_single(param, c_idx, true, dest, timeout, retries, paramver, verbose);
 	}
 
-	return _pycsh_util_get_array_indexes(param, offset, true, server, timeout, retries, paramver, verbose);
+	return _pycsh_util_get_array_indexes(param, offset, true, dest, timeout, retries, paramver, verbose);
 }
 
 PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {
