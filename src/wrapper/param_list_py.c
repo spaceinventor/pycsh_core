@@ -127,24 +127,32 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
             return NULL;  // Exception message set by pycsh_parse_param_mask()
         }
     }
-    
-    param_t * param = param_list_create_remote(id, node, type, mask, length, name, unitstr, helpstr, -1);
-    
 
-    PyObject * param_instance = pycsh_Parameter_from_param(&ParameterType, param, NULL, INT_MIN, pycsh_dfl_timeout, 1, 2, PY_PARAM_FREE_LIST_DESTROY);
+    /* This guard clause above only exists to provide a more specific error message than the ones below.
+        We could remove this guard clause if we wanted. */
+    const param_t * const existing_param = param_list_find_id(node, id);
+    if (existing_param) {
+        PyErr_Format(PyExc_LookupError, "Parameter om node %d and id %d already exists, by the name of '%s'", node, id, existing_param->name);
+        return NULL;
+    }
+
+    param_t * const param = param_list_create_remote(id, node, type, mask, length, name, unitstr, helpstr, -1);
+
+    PyObject * const param_instance AUTO_DECREF = pycsh_Parameter_from_param(&ParameterType, param, NULL, INT_MIN, pycsh_dfl_timeout, 1, 2, PY_PARAM_FREE_LIST_DESTROY);
 
     if (param_instance == NULL) {
-        PyErr_SetString(PyExc_ValueError, "Unable to create param");
+        if (param) {
+            param_list_destroy(param);
+        }
+        PyErr_SetString(PyExc_MemoryError, "Unable to create param");
         return NULL;
     }
     if (param_list_add(param) != 0) {
-        param_list_destroy(param);
-        Py_DECREF(param_instance);
-        PyErr_SetString(PyExc_ValueError, "Failed to add parameter to list");
+        PyErr_SetString(PyExc_ValueError, "Failed to add parameter to list"); 
         return NULL;
     }   
 
-    return param_instance;
+    return Py_NewRef(param_instance);
 }
 
 /**

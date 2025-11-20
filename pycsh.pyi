@@ -1129,6 +1129,11 @@ def list_add(node: int, length: int, id: int, name: str, type: int, mask: int | 
     :param mask: Mask for the parameter.
     :param comment: Additional comment for the parameter.
     :param unit: Unit of measurement for the parameter.
+
+    :raises LookupError: If a parameter on the specified node and id already exists.
+    :raises MemoryError: If we, for whatever reason, fail to create the `Parameter` object.
+    :raises ValueError: If we fail to actually add the parameter to the list.
+
     :returns: Returns the created parameter.
     """
 
