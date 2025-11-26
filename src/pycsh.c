@@ -182,7 +182,7 @@ static PyMethodDef methods[] = {
 	{"pull", 		(PyCFunction)pycsh_param_pull,	METH_VARARGS | METH_KEYWORDS, "Pull all or a specific set of parameters."},
 	{"cmd_done", 	pycsh_param_cmd_done, 			METH_NOARGS, 				  "Clears the queue."},
 	{"cmd_new", 	(PyCFunction)pycsh_param_cmd_new,METH_VARARGS | METH_KEYWORDS,"Create a new command"},
-	{"node", 		pycsh_slash_node, 			  	METH_VARARGS, 				  "Used to get or change the default node."},
+	{"node", 		(PyCFunction)pycsh_slash_node, 			  	METH_VARARGS | METH_KEYWORDS, "Used to get or change the default node."},
 	{"timeout", 	(PyCFunction)pycsh_slash_timeout,METH_VARARGS | METH_KEYWORDS,"Used to get or change the default timeout."},
 	{"verbose", 	pycsh_slash_verbose, 			METH_VARARGS, 		  		  "Used to get or change the default parameter verbosity."},
 	{"queue", 		pycsh_param_cmd,			  	METH_NOARGS, 				  "Print the current command."},
