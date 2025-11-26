@@ -1045,7 +1045,7 @@ def cmd_new(type: _Literal['get', 'set'], name: str = None, paramver: int = 2) -
 def cmd_done() -> None:
     """ Clears the queue. """
 
-def node(node: int | str = None) -> int:
+def node(node: int | str = None, verbose: int = None) -> int:
     """
     Used to get or change the default node.
 

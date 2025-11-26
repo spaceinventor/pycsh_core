@@ -16,20 +16,27 @@
 
 // TODO Kevin: These differ from the newest version of slash/csh
 
-PyObject * pycsh_slash_node(PyObject * self, PyObject * args) {
+PyObject * pycsh_slash_node(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	PyObject * node = NULL;
+	int verbose = pycsh_dfl_verbose;
 
-	if (!PyArg_ParseTuple(args, "|O", &node)) {
+	static char *kwlist[] = {"node", "verbose", NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, "|Oi", kwlist, &node, &verbose)) {
 		return NULL;  // TypeError is thrown
 	}
 
 	if (node == NULL) {  // No argument passed
-		printf("Default node = %d\n", pycsh_dfl_node);
+		if (verbose >= 2) {
+			printf("Default node = %d\n", pycsh_dfl_node);
+		}
 	} else if (PyLong_Check(node)) {
 
 		pycsh_dfl_node = PyLong_AsUnsignedLong(node);
-		printf("Set default node to %d\n", pycsh_dfl_node);
+		if (verbose >= 1) {
+			printf("Set default node to %d\n", pycsh_dfl_node);
+		}
 	} else {
 		PyErr_SetString(PyExc_TypeError, "'node' argument must be an int");
 		return NULL;
