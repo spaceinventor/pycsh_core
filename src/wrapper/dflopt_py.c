@@ -23,7 +23,7 @@ PyObject * pycsh_slash_node(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	static char *kwlist[] = {"node", "verbose", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, "|Oi", kwlist, &node, &verbose)) {
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|Oi", kwlist, &node, &verbose)) {
 		return NULL;  // TypeError is thrown
 	}
 
