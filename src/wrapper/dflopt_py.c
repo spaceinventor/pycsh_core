@@ -78,11 +78,13 @@ PyObject * pycsh_slash_verbose(PyObject * self, PyObject * args) {
 		return NULL;  // TypeError is thrown
 	}
 
-	if (verbose == INT_MIN)
+	if (verbose == INT_MIN && pycsh_dfl_verbose >= 0) {
 		printf("Default verbose = %d\n", pycsh_dfl_verbose);
-	else {
+	} else {
 		pycsh_dfl_verbose = verbose;
-		printf("Set default verbosity to %d\n", pycsh_dfl_verbose);
+		if (pycsh_dfl_verbose >= 0) {
+			printf("Set default verbosity to %d\n", pycsh_dfl_verbose);
+		}
 	}
 
 	return Py_BuildValue("i", pycsh_dfl_verbose);

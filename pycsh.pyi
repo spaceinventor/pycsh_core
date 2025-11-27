@@ -1066,7 +1066,7 @@ def verbose(verbose: int = None) -> int:
     """
     Used to get or change the default parameter verbosity.
 
-    :param verbose: Integer to change the default verbosity to (initial value = -1).
+    :param verbose: Integer to change the default verbosity to, set to <0 for quiet operation.
     :return: The current default timeout.
     """
 
