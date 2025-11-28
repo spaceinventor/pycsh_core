@@ -132,7 +132,7 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
 
     /* This guard clause above only exists to provide a more specific error message than the ones below.
         We could remove this guard clause if we wanted. */
-    const param_t * const existing_param = param_list_find_id(node, id);
+    param_t * const existing_param = param_list_find_id(node, id);
     if (raise_exc && existing_param) {
         PyErr_Format(PyExc_LookupError, "Parameter om node %d and id %d already exists, by the name of '%s'", node, id, existing_param->name);
         return NULL;
