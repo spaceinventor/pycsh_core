@@ -10,6 +10,7 @@
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
 #include <apm/csh_api.h>
+#include <csp/autoconfig.h>
 
 
 static PyObject * Interface_str(InterfaceObject *self) {
@@ -90,7 +91,7 @@ InterfaceObject * Interface_from_csp_iface_t(PyTypeObject *type, csp_iface_t * i
  */
 InterfaceObject * Interface_from_py_identifier(PyObject * identifier/*: int|str|Interface*/) {
 	if (PyLong_Check(identifier)) {
-		
+
 		/* All 3 of these are quite cool, but `_addr()` and `_subnet()` don't account for dual-CAN. */
 		csp_iface_t * ifc = csp_iflist_get_by_index(PyLong_AsLong(identifier));
 		//csp_iface_t * ifc = csp_iflist_get_by_subnet();
@@ -229,6 +230,12 @@ static PyGetSetDef Interface_getset[] = {
 
 PyObject * Interface_set_promisc(InterfaceObject * self, PyObject * args) {
 
+#ifndef CSP_HAVE_LIBZMQ
+    /* If ZMQ isn't installed, this can't possibly be a ZMQ interface. */
+    PyErr_SetString(PyExc_NotImplementedError, "`Interface.set_promisc()` can currently only be called on ZMQ interfaces");
+    return NULL;
+#else
+
     int csp_zmqhub_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me);
     if (self->iface->nexthop != csp_zmqhub_tx) {
         PyErr_SetString(PyExc_NotImplementedError, "`Interface.set_promisc()` can currently only be called on ZMQ interfaces");
@@ -248,6 +255,7 @@ PyObject * Interface_set_promisc(InterfaceObject * self, PyObject * args) {
     }
 
 	Py_RETURN_NONE;
+#endif
 }
 
 

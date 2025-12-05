@@ -20,6 +20,7 @@
 #include <param/param_server.h>
 #include <vmem/vmem_server.h>
 #include <sys/utsname.h>
+#include <csp/autoconfig.h>
 #include <csp/interfaces/csp_if_zmqhub.h>
 #include <csp/interfaces/csp_if_can.h>
 #include <csp/interfaces/csp_if_lo.h>
@@ -178,6 +179,7 @@ static char * pycsh_parse_zmq_sec_key(PyObject * key_file_obj, char key_buf[41])
     return key_buf;
 }
 
+#ifdef CSP_HAVE_LIBZMQ
 PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * kwds) {
 
     static int ifidx = 0;
@@ -241,6 +243,7 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
 
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
+#endif
 
 PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject * kwds) {
 
