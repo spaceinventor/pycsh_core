@@ -152,8 +152,10 @@ PyObject * pycsh_vmem_upload(PyObject * self, PyObject * args, PyObject * kwds) 
 
     static char *kwlist[] = {"address", "data_in", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", "version", "verbose", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kO|kIIIIIIi:vmem_upload", kwlist, &address, &data_in, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &version, &verbose))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kO|kIIIIIIi:vmem_upload", kwlist, &address, &data_in, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &version, &verbose)) {
+		data_in = NULL;
 		return NULL;  // TypeError is thrown
+	}
 
 	if (verbose > 1) {
 		printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
