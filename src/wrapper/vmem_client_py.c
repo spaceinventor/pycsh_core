@@ -22,6 +22,9 @@ PyObject * pycsh_vmem_download(PyObject * self, PyObject * args, PyObject * kwds
 
 	CSP_INIT_CHECK()
 
+	uint64_t address;
+	unsigned int length;
+
 	unsigned int node = pycsh_dfl_node;
 	unsigned int timeout = pycsh_dfl_timeout;
 	unsigned int version = 1;
@@ -33,25 +36,50 @@ PyObject * pycsh_vmem_download(PyObject * self, PyObject * args, PyObject * kwds
 	unsigned int packet_timeout = 5000;
 	unsigned int ack_timeout = 2000;
 	unsigned int ack_count = 2;
-	uint64_t address = 0;
-	unsigned int length = 0;
+	
+	int verbose = pycsh_dfl_verbose;
 
-    static char *kwlist[] = {"address", "length", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", "timeout", "version", "use_rdp", NULL};
+    static char *kwlist[] = {"address", "length", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", "timeout", "version", "use_rdp", "verbose", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|IIIIIIIIp:vmem_download", kwlist, &address, &length, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &timeout, &version, &use_rdp))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kI|IIIIIIIIpi:vmem_download", kwlist, &address, &length, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &timeout, &version, &use_rdp, &verbose))
 		return NULL;  // TypeError is thrown
 
-	printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
+	if (verbose > 1) {
+		printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
+	}
 	csp_rdp_set_opt(window, conn_timeout, packet_timeout, 1, ack_timeout, ack_count);
 
-	printf("Downloading from: %08"PRIX64"\n", address);
-	char *odata = malloc(length);
+	if (verbose > 0) {
+		printf("Downloading from: %08"PRIX64"\n", address);
+	}
+	char * const odata CLEANUP_STR = malloc(length);
 
-	vmem_download(node, timeout, address, length, odata, version, use_rdp);
+	if (!odata) {
+		return PyErr_NoMemory();
+	}
 
-	PyObject * vmem_data = PyBytes_FromStringAndSize(odata, length);
+	const int received_len = vmem_download(node, timeout, address, length, odata, version, use_rdp);
+	if (received_len < 0) {
+		switch (received_len) {
+			case CSP_ERR_NOBUFS: {
+				PyErr_Format(PyExc_BufferError, "No CSP buffers available (address=%d), (node=%d), (window=%d), (conn_timeout=%d), (packet_timeout=%d), (ack_timeout=%d), (ack_count=%d), (version=%d)", address, node, window, conn_timeout, packet_timeout, ack_timeout, ack_count, version);
+				return NULL;
+			}
+			case CSP_ERR_TIMEDOUT: {
+				PyErr_Format(PyExc_ConnectionError, "Download failed (address=%d), (node=%d), (window=%d), (conn_timeout=%d), (packet_timeout=%d), (ack_timeout=%d), (ack_count=%d), (version=%d)", address, node, window, conn_timeout, packet_timeout, ack_timeout, ack_count, version);
+				return NULL;
+			}
+			
+			default: {
+				PyErr_Format(PyExc_Exception, "Unknown `vmem_download()` error (res=%d) (address=%d), (node=%d), (window=%d), (conn_timeout=%d), (packet_timeout=%d), (ack_timeout=%d), (ack_count=%d), (version=%d)", received_len, address, node, window, conn_timeout, packet_timeout, ack_timeout, ack_count, version);
+				return NULL;
+			}
+		}
+		
+		return NULL;
+	}
 
-	free(odata);
+	PyObject * vmem_data = PyBytes_FromStringAndSize(odata, received_len);
 
 	return vmem_data;
 
@@ -106,9 +134,12 @@ PyObject * pycsh_vmem_upload(PyObject * self, PyObject * args, PyObject * kwds) 
 	
 	CSP_INIT_CHECK()
 
+	uint64_t address;
+	PyObject * data_in AUTO_DECREF = NULL;
+
 	unsigned int node = pycsh_dfl_node;
 	unsigned int timeout = pycsh_dfl_timeout;
-	unsigned int version = 2;
+	unsigned int version = 1;
 
 	/* RDPOPT */
 	unsigned int window = 3;
@@ -116,19 +147,22 @@ PyObject * pycsh_vmem_upload(PyObject * self, PyObject * args, PyObject * kwds) 
 	unsigned int packet_timeout = 5000;
 	unsigned int ack_timeout = 2000;
 	unsigned int ack_count = 2;
-	uint64_t address = 0;
-	
-	PyObject * data_in AUTO_DECREF = NULL;
 
-    static char *kwlist[] = {"address", "data_in", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", "version", NULL};
+	int verbose = pycsh_dfl_verbose;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kO|kIIIIII:vmem_upload", kwlist, &address, &data_in, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &version))
+    static char *kwlist[] = {"address", "data_in", "node", "window", "conn_timeout", "packet_timeout", "ack_timeout", "ack_count", "version", "verbose", NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "kO|kIIIIIIi:vmem_upload", kwlist, &address, &data_in, &node, &window, &conn_timeout, &packet_timeout, &ack_timeout, &ack_count, &version, &verbose))
 		return NULL;  // TypeError is thrown
 
-	printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
+	if (verbose > 1) {
+		printf("Setting rdp options: %u %u %u %u %u\n", window, conn_timeout, packet_timeout, ack_timeout, ack_count);
+	}
 	csp_rdp_set_opt(window, conn_timeout, packet_timeout, 1, ack_timeout, ack_count);
 
-	printf("Uploading from: %08"PRIX64"\n", address);
+	if (verbose > 0) {
+		printf("Uploading to: %08"PRIX64"\n", address);
+	}
 	char *idata = NULL;
 	Py_ssize_t idata_len = 0;
 
@@ -152,11 +186,27 @@ PyObject * pycsh_vmem_upload(PyObject * self, PyObject * args, PyObject * kwds) 
 		PyErr_SetString(PyExc_ValueError, "Nothing to upload");
 	}
 	
-	if (vmem_upload(node, timeout, address, idata, idata_len, version) < 0) {
-		PyErr_Format(PyExc_ConnectionError, "Upload failed (address=%d), (node=%d), (window=%d), (conn_timeout=%d), (packet_timeout=%d), (ack_timeout=%d), (ack_count=%d), (version=%d)", address, node, window, conn_timeout, packet_timeout, ack_timeout, ack_count, version);
+	const int num_bytes_upload = vmem_upload(node, timeout, address, idata, idata_len, version);
+	if (num_bytes_upload < 0) {
+		
+		switch (num_bytes_upload) {
+			case CSP_ERR_NOBUFS: {
+				PyErr_Format(PyExc_BufferError, "No CSP buffers available (address=%d), (node=%d), (window=%d), (conn_timeout=%d), (packet_timeout=%d), (ack_timeout=%d), (ack_count=%d), (version=%d)", address, node, window, conn_timeout, packet_timeout, ack_timeout, ack_count, version);
+				return NULL;
+			}
+			case CSP_ERR_TIMEDOUT: {
+				PyErr_Format(PyExc_ConnectionError, "Upload failed (address=%d), (node=%d), (window=%d), (conn_timeout=%d), (packet_timeout=%d), (ack_timeout=%d), (ack_count=%d), (version=%d)", address, node, window, conn_timeout, packet_timeout, ack_timeout, ack_count, version);
+				return NULL;
+			}
+			
+			default: {
+				PyErr_Format(PyExc_Exception, "Unknown `vmem_upload()` error (res=%d) (address=%d), (node=%d), (window=%d), (conn_timeout=%d), (packet_timeout=%d), (ack_timeout=%d), (ack_count=%d), (version=%d)", num_bytes_upload, address, node, window, conn_timeout, packet_timeout, ack_timeout, ack_count, version);
+				return NULL;
+			}
+		}
 	}
-	Py_RETURN_NONE;
 
+	return Py_BuildValue("i", num_bytes_upload);
 }
 
 PyObject * pycsh_param_vmem(PyObject * self, PyObject * args, PyObject * kwds) {

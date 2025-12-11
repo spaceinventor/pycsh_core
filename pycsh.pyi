@@ -1202,7 +1202,9 @@ def get_type(param_identifier: _param_ident_hint, node: int = None) -> _param_ty
 # Vmem commands
 def vmem(node: int = None, timeout: int = None, version: int = None) -> str:
     """
-    Builds a string of the vmem at the specified node.
+    Builds a string of the vmem areas at the specified node.
+
+    See also `class Vmem`
 
     :param node: Node from which the vmem should be listed.
     :param timeout: Timeout in ms when connecting to the node.
@@ -1211,38 +1213,44 @@ def vmem(node: int = None, timeout: int = None, version: int = None) -> str:
     :raises ConnectionError: When the timeout is exceeded attempting to connect to the specified node.
     :raises MemoryError: When allocation for a CSP buffer fails.
 
-    :return: The string of the vmem at the specfied node.
+    :return: The string of the vmem areas at the specfied node.
     """
 
-def vmem_download(address: int = None, length: int = None, node: int = None, window: int = None, conn_timeout: int = None, packet_timeout: int = None, ack_timeout: int = None, timeout: int = None, version: int = 1, use_rdp: bool = True) -> bytes:
+def vmem_download(address: int, length: int, node: int = None, window: int = None, conn_timeout: int = None, packet_timeout: int = None, ack_timeout: int = None, timeout: int = None, version: int = 1, use_rdp: bool = True, verbose: int = None) -> bytes:
     """
-    Downloads a VMEM memory area specified by the argument, and puts it in data_out
+    Downloads a VMEM memory area specified by the argument, and return it as a `bytes` object.
 
     :param address: The VMEM address to download from
     :param length: Number of bytes to download
     :param node: Node from which the vmem should be listed.
     :param window: RDP Window.
     :param timeout: Timeout in ms when connecting to the node.
+    :param verbose: Larger number prints more. Defaults to verbosity set by `pycsh.verbose()`.
 
     :raises RuntimeError: When called before .init().
     :raises ConnectionError: When the timeout is exceeded attempting to connect to the specified node.
-    :raises MemoryError: When allocation for a CSP buffer fails.
+    :raises MemoryError: When allocation of a CSP buffer fails.
+    :raises Exception: For future/undocumented C errors (Must be caught after specific exception classes).
 
-    :return: A series of bytes downloaded from the VMEM area
+    :return: Bytes downloaded from the VMEM area. `len(.vmem_download(...))` may be short than `length` if the connection fails during download.
     """
 
-def vmem_upload(address: int = None, data_in: bytes | _IOBase = None, node: int = None, window: int = None, conn_timeout: int = None, packet_timeout: int = None, ack_timeout: int = None, ack_count: int = None, version: int = 2) -> None:
+def vmem_upload(address: int, data_in: bytes | _IOBase, node: int = None, window: int = None, conn_timeout: int = None, packet_timeout: int = None, ack_timeout: int = None, ack_count: int = None, version: int = 1, verbose: int = None) -> int:
     """
-    Uploads data from data_in to a VMEM memory area specified by the argument.
+    Uploads data from `data_in` to a VMEM memory area specified by the argument.
 
     :param address: The VMEM address to upload to
     :param data_in: The bytes to upload
     :param node: Node from which the vmem should be listed.
     :param timeout: Timeout in ms when connecting to the node.
+    :param verbose: Larger number prints more. Defaults to verbosity set by `pycsh.verbose()`.
 
     :raises RuntimeError: When called before .init().
     :raises ConnectionError: When the timeout is exceeded attempting to connect to the specified node.
     :raises MemoryError: When allocation for a CSP buffer fails.
+    :raises Exception: For future/undocumented C errors (Must be caught after specific exception classes).
+
+    :returns: int of number of bytes uploaded. May be smaller than `data_in` if the transfer is interrupted.
     """
 
 def switch(slot: int, node: int = None, times: int = None) -> None:
