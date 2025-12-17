@@ -1282,7 +1282,8 @@ def program(slot: int, filename: str, node: int = None, do_crc32: bool = False, 
     :param ack_timeout: rdp max acknowledgement interval (default = 2 seconds) (keyword-only)
     :param ack_count: rdp ack for each (default = 2 packets) (keyword-only)
 
-    :raises IOError: When in invalid filename is specified.
+    :raises IOError: When an invalid filename is specified.
+    :raises LookupError: When an otherwise valid filename is incompatible with the specified module.
     :raises ProgramDiffError: See class docstring.
     :raises ConnectionError: When no connection to the specified node can be established.
     """

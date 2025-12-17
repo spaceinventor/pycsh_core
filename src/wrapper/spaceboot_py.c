@@ -195,43 +195,99 @@ static void upload(int node, int address, char * data, int len) {
 #define BIN_PATH_MAX_ENTRIES 10
 #define BIN_PATH_MAX_SIZE 256
 
-struct bin_info_t {
+typedef struct bin_file_ident_s {
+	bool valid;
+	char hostname[BIN_PATH_MAX_ENTRIES+1];
+	char model[BIN_PATH_MAX_ENTRIES+1];
+	char version_string[BIN_PATH_MAX_ENTRIES+1];
+	uint32_t stext;
+} bin_file_ident_t;
+
+
+static struct bin_info_t {
 	uint32_t addr_min;
 	uint32_t addr_max;
 	unsigned count;
 	char entries[BIN_PATH_MAX_ENTRIES][BIN_PATH_MAX_SIZE];
 };
 extern struct bin_info_t bin_info;
-#if 0  // TODO Kevin: When a .bin filename is specified, is_valid_binary() should be used.
+
 // Binary file byte offset of entry point address.
 // C21: 4, E70: 2C4
 static const uint32_t entry_offsets[] = { 4, 0x2c4 };
 
-static bool is_valid_binary(const char * path, struct bin_info_t * binf) {
+static bool is_valid_binary(const char * path, struct bin_info_t * binf, bin_file_ident_t * binf_ident)
+{
+	binf_ident->valid = false;
+
+	/* 1. does the file have the .bin extention */
 	int len = strlen(path);
 	if ((len <= 4) || (strcmp(&(path[len-4]), ".bin") != 0)) {
 		return false;
 	}
 
+	/* 2. read all the data from the file */
 	char * data;
 	if (image_get((char*)path, &data, &len) < 0) {
 		return false;
 	}
 
-	if (binf->addr_min + len <= binf->addr_max) {
-		uint32_t addr = 0;
-		for (size_t i = 0; i < sizeof(entry_offsets)/sizeof(uint32_t); i++) {
-			addr = *((uint32_t *) &data[entry_offsets[i]]);
-			if ((binf->addr_min <= addr) && (addr <= binf->addr_max)) {
-				free(data);
-				return true;
+	/* 3. detect if there is a IDENT structure at the end */
+	bool ident_found = false;
+	char *ident_str[3] = { &binf_ident->hostname[0], &binf_ident->model[0], &binf_ident->version_string[0] };
+	int32_t idx = -4;
+	if (!memcmp(&data[len + idx], "\xC0\xDE\xBA\xD0", 4)) {
+		idx -= 4;
+
+		/* 3.1. grab the stext address (start of text) */
+		binf_ident->stext = ((uint32_t *)(&data[len + idx]))[0];
+
+		/* 3.2. verify that the entry lies within the vmem area to be programmed */
+		if ((binf->addr_min <= binf_ident->stext) && (binf->addr_max >= binf_ident->stext) && ((binf->addr_min + len) <= binf->addr_max)) {
+			/* 3.2.1. scan for an other magic marker */
+			char *ident_begin = NULL;
+			do {
+				idx--;
+				if (!memcmp(&data[len + idx], "\xBA\xD0\xFA\xCE", 4)) {
+					ident_begin = &data[len + idx + 4];
+					break;
+				}
+			} while (idx >= -256);
+			/* 3.2.2. if we found the beginning, we can extract IDENT strings */
+			char *ident_iter;
+			uint8_t ident_id;
+			for (ident_iter = ident_begin, ident_id = 0; ident_iter && (ident_iter < &data[len - 4] && ident_id < 3); ident_id++) {
+				if (ident_iter) {
+					strncpy(ident_str[ident_id], ident_iter, 32);
+				}
+				ident_iter += (strlen(ident_iter) + 1);
+				ident_found = true;
+				binf_ident->valid = true;
+			}
+		} else {
+			/* We found the magic marker and the entry point address, but it did not match the area */
+			free(data);
+			return false;
+		}
+	}
+
+	if (!ident_found) {
+		/* 4. analyze the "magic position" for a valid value - might be the Reset_Handler address in the vector table */
+		if (binf->addr_min + len <= binf->addr_max) {
+			uint32_t addr = 0;
+			for (size_t i = 0; i < sizeof(entry_offsets)/sizeof(uint32_t); i++) {
+				addr = *((uint32_t *) &data[entry_offsets[i]]);
+				if ((binf->addr_min <= addr) && (addr <= binf->addr_max)) {
+					free(data);
+					return true;
+				}
 			}
 		}
 	}
+
 	free(data);
-	return false;
+	return ident_found;
 }
-#endif
 
 static int upload_and_verify(int node, int address, char * data, int len) {
 
@@ -316,11 +372,17 @@ PyObject * pycsh_csh_program(PyObject * self, PyObject * args, PyObject * kwds) 
 
     assert(filename != NULL);
     strncpy(bin_info.entries[0], filename, BIN_PATH_MAX_SIZE-1);
+	bin_info.addr_min = vmem.vaddr;
+	bin_info.addr_max = (vmem.vaddr + vmem.size) - 1;
     bin_info.count = 0;
 
-	printf("node 2 %d\n", pycsh_dfl_node);
-
 	char * path = bin_info.entries[0];
+
+	bin_file_ident_t binf_ident;
+	if (!is_valid_binary(path, &bin_info, &binf_ident)) {
+		PyErr_Format(PyExc_LookupError, "%s is not a valid firmware for %s on node %d", path, vmem.name, node);
+		return NULL;
+	}
 
     printf("\033[31m\n");
     printf("ABOUT TO PROGRAM: %s\n", path);
