@@ -1302,7 +1302,10 @@ def sps(from_: int, to: int, filename: str, node: int = None, window: int = None
     :param ack_timeout: rdp max acknowledgement interval (default = 2 seconds)
     :param ack_count: rdp ack for each (default = 2 packets)
 
+    :raises IOError: When an invalid filename is specified.
+    :raises LookupError: When an otherwise valid filename is incompatible with the specified module.
     :raises ProgramDiffError: See class docstring.
+    :raises ConnectionError: When no connection to the specified node can be established.
     """
 
 def apm_load(path: str = '~/.local/lib/csh/', filename: str = None, stop_on_error: bool = False, verbose: int = ...) -> dict[str, _ModuleType | Exception]:

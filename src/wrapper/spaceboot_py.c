@@ -204,7 +204,7 @@ typedef struct bin_file_ident_s {
 } bin_file_ident_t;
 
 
-static struct bin_info_t {
+struct bin_info_t {
 	uint32_t addr_min;
 	uint32_t addr_max;
 	unsigned count;
@@ -488,9 +488,17 @@ PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	assert(filename != NULL);
     strncpy(bin_info.entries[0], filename, BIN_PATH_MAX_SIZE-1);
+	bin_info.addr_min = vmem.vaddr;
+	bin_info.addr_max = (vmem.vaddr + vmem.size) - 1;
     bin_info.count = 0;
 
 	char * path = bin_info.entries[0];
+
+	bin_file_ident_t binf_ident;
+	if (!is_valid_binary(path, &bin_info, &binf_ident)) {
+		PyErr_Format(PyExc_LookupError, "%s is not a valid firmware for %s on node %d", path, vmem.name, node);
+		return NULL;
+	}
 
     printf("\033[31m\n");
     printf("ABOUT TO PROGRAM: %s\n", path);
