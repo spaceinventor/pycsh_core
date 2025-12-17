@@ -132,5 +132,5 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
  */
 int pycsh_parse_param_mask(PyObject * mask_in, uint32_t * mask_out);
 
-extern bool csp_router_is_running();
+extern bool csp_router_is_running(void);
 extern void csp_router_set_running(bool is_running);
