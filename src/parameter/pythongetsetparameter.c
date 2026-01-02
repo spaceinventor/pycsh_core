@@ -461,7 +461,7 @@ static void PythonGetSetParameter_dealloc(PythonGetSetParameterObject *self) {
         self->setter_func = NULL;
     }
 
-    PyTypeObject *baseclass = pycsh_get_base_dealloc_class(&PythonGetSetParameterType);
+    PyTypeObject *baseclass = pycsh_get_base_dealloc_class((PyObject*)self);
     baseclass->tp_dealloc((PyObject*)self);
 }
 

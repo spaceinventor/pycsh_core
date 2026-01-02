@@ -267,7 +267,7 @@ static void ValueProxy_dealloc(ValueProxyObject *self) {
 
 	Py_XDECREF(self->value);
 
-	PyTypeObject *baseclass = pycsh_get_base_dealloc_class(&ValueProxyType);
+	PyTypeObject *baseclass = pycsh_get_base_dealloc_class((PyObject*)self);
     baseclass->tp_dealloc((PyObject*)self);
 }
 

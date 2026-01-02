@@ -685,7 +685,7 @@ static void Parameter_dealloc(ParameterObject *self) {
 	}
 	#endif
 
-	PyTypeObject *baseclass = pycsh_get_base_dealloc_class(&ParameterType);
+	PyTypeObject *baseclass = pycsh_get_base_dealloc_class((PyObject*)self);
     baseclass->tp_dealloc((PyObject*)self);
 }
 

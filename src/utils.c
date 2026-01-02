@@ -154,11 +154,11 @@ finally:
  * @param cls Class to find a super() .tp_dealloc() for.
  * @return PyTypeObject* super() class.
  */
-PyTypeObject * pycsh_get_base_dealloc_class(PyTypeObject *cls) {
+PyTypeObject * pycsh_get_base_dealloc_class(PyObject *self) {
 	
 	/* Keep iterating baseclasses until we find one that doesn't use this deallocator. */
-	PyTypeObject *baseclass = cls->tp_base;
-	for (; baseclass->tp_dealloc == cls->tp_dealloc; (baseclass = baseclass->tp_base));
+	PyTypeObject *baseclass = self->ob_type->tp_base;
+	for (; baseclass->tp_dealloc == self->ob_type->tp_dealloc; (baseclass = baseclass->tp_base));
 
     assert(baseclass->tp_dealloc != NULL);  // Assert that Python installs some deallocator to classes that don't specifically implement one (Whether pycsh.Parameter or object()).
 	return baseclass;

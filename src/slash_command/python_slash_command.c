@@ -1055,7 +1055,7 @@ static void PythonSlashCommand_dealloc(PythonSlashCommandObject *self) {
     //((char*)self->command_heap.args) = NULL;
     // Get the type of 'self' in case the user has subclassed 'SlashCommand'.
     // Py_TYPE(self)->tp_free((PyObject *) self);
-    PyTypeObject *baseclass = pycsh_get_base_dealloc_class(&PythonSlashCommandType);
+    PyTypeObject *baseclass = pycsh_get_base_dealloc_class((PyObject*)self);
     baseclass->tp_dealloc((PyObject*)self);
 }
 

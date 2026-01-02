@@ -53,7 +53,7 @@ PyObject * call_super_pyname_lookup(PyObject *self, PyObject *func_name, PyObjec
  * @param cls Class to find a super() .tp_dealloc() for.
  * @return PyTypeObject* super() class.
  */
-PyTypeObject * pycsh_get_base_dealloc_class(PyTypeObject *cls);
+PyTypeObject * pycsh_get_base_dealloc_class(PyObject *self);
 
 /**
  * @brief Goes well with (__DATE__, __TIME__) and (csp_cmp_message.ident.date, csp_cmp_message.ident.time)

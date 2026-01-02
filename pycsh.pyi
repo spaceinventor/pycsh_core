@@ -957,6 +957,31 @@ class Vmem:
         :return: Tuple of Vmem area object instances.
         """
 
+    @classmethod
+    def find(cls, node: int = None, timeout: int = None, version: int = 2, verbose: int = None) -> tuple[Vmem, ...]:
+        """
+        Just calls `.__new__()`, really.
+        """
+
+    @classmethod
+    def new(cls, vaddr: int, size: int, type: int, name: str, read: _Callable[[Vmem, int, int], bytes], write: _Callable[[Vmem, int, bytes], None]) -> Vmem:
+        """
+        Create a new Vmem from the provided arguments, and register it in the global list.
+
+        :param vaddr: Exposed start address of the VMEM.
+        :param size: Number of bytes from `vaddr` that also read/write to/from the VMEM..
+        :param type: Type of the Vmem, i.e VMEM_TYPE_RAM.
+        :param name: Name of the VMEM, max 16 characters.
+        :param read: VMEM read function. Should accept `(self, addr, length)` and return `-> bytes`
+        :param write: VMEM write function. Should accept `(self, addr, data)`
+
+        :raises NameError: When `len(name) > 16` 
+        :raises BufferError: If `vaddr+size` overlaps with an existing VMEM.
+        :raises MemoryError: When failing to allocate the `vmem_t` struct.
+
+        :return: The created Vmem instance.
+        """
+
 
 _param_ident_hint = int | str | Parameter  # Types accepted for finding a param_t
 

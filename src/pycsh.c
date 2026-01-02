@@ -364,6 +364,17 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
         return NULL;
 	}
 
+	/* Install `@classmethod`s into Vmem */
+	for (size_t i = 0; i<sizeof(Vmem_class_methods)/sizeof(Vmem_class_methods[0]); i++) {
+		PyMethodDef* classmethod_def = &Vmem_class_methods[i];
+		assert(classmethod_def->ml_flags & METH_CLASS);
+		PyObject *classmethod AUTO_DECREF = PyDescr_NewClassMethod(&VmemType, classmethod_def);
+		assert(classmethod);
+		const int res = PyDict_SetItemString(VmemType.tp_dict, classmethod_def->ml_name, classmethod);
+		assert(res == 0);
+		(void)res;
+	}
+
 	if (PyModule_AddType(pycsh, &SlashCommandType) < 0) {
         return NULL;
 	}
@@ -447,6 +458,9 @@ PyMODINIT_FUNC PyInit_pycsh(void) {
     #undef PyModule_AddObject_ErrCheck
 
 	param_callback_dict = (PyDictObject *)PyDict_New();
+	assert(param_callback_dict);
+	vmem_dict = (PyDictObject *)PyDict_New();
+	assert(vmem_dict);
 
 	return Py_NewRef(pycsh);  // `Py_NewRef()` needed because we use AUTO_DECREF for exception handling.
 }
