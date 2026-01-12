@@ -632,7 +632,7 @@ static PyObject * PythonGetSetParameter_new(PyTypeObject *type, PyObject * args,
         self->vmem_heap.name = "GETSET";
         self->vmem_heap.size = array_size*param_typesize(self->parameter_object.param->type);
         self->vmem_heap.type = -1;  // TODO Kevin: Maybe expose vmem_types, instead of just setting unspecified.
-        self->vmem_heap.vaddr = 0;
+        self->vmem_heap.vaddr = (uint64_t)self->parameter_object.param->addr;
         self->vmem_heap.backup = NULL;
         self->vmem_heap.big_endian = false;
         self->vmem_heap.restore = NULL;
