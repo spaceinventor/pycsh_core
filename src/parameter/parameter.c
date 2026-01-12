@@ -1003,6 +1003,11 @@ static PyObject * Parameter_list_add(ParameterObject *self, PyObject *args, PyOb
 	/* res==1=="existing parameter updated" */
 	const int res = param_list_add(self->param);
 
+    /* `self` is now added to the list.
+        Although if we updated an existing parameter,
+        we should point to that instead. */
+    /* In any case, the list now holds a reference to `self`. */
+    Py_INCREF(self);
 	
 	if (res!=1) {
 		/* Did not update existing parameter. We either added a new parameter, or error. */
@@ -1030,8 +1035,17 @@ static PyObject * Parameter_list_forget(ParameterObject *self, PyObject *args, P
 		return NULL;  // TypeError is thrown
 	}
 
+    const param_t * const list_param_before = param_list_find_id(*self->param->node, self->param->id);
+
 	/* `param_list_destroy()` will be called by `Parameter_dealloc()` */
 	param_list_remove_specific(self->param, verbose, false);
+
+    const param_t * const list_param_after = param_list_find_id(*self->param->node, self->param->id);
+
+    /* Successfully removed `self` from the parameter list, so it no longer holds a reference. */
+    if (list_param_before && !list_param_after) {
+        Py_DECREF(self);
+    }
 
 	Py_RETURN_NONE;
 }
