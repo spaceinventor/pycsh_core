@@ -51,10 +51,10 @@ static PyObject *_pycsh_val_to_pyobject(param_type_e type, const void * value) {
 		case PARAM_TYPE_DOUBLE:
 			return Py_BuildValue("d", *(double*)value);
 		case PARAM_TYPE_STRING: {
-			return Py_BuildValue("s", *(char*)value);
+			return Py_BuildValue("s", (char*)value);
 		}
 		case PARAM_TYPE_DATA: {
-			return Py_BuildValue("O&", *(char*)value);
+			return Py_BuildValue("O&", (char*)value);
 		}
 		default: {
 			/* Default case to make the compiler happy. Set error and return */
