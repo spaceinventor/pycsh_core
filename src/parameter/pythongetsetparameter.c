@@ -185,7 +185,12 @@ void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len
 
 
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
-    assert(!PyErr_Occurred());  // Callback may raise an exception. But we don't want to override an existing one.
+
+    /* `Parameter_getter` may be called many times before we call the `on_python_slash_execute_post_hook()`.
+        Imagine that we're throwing up a ball, and blindly waiting for it to possibly come back down. */
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+    }
 
     PythonGetSetParameterObject *python_param = python_wraps_vmem(vmem);
 
@@ -236,7 +241,12 @@ void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len
 void Parameter_setter(vmem_t * vmem, uint64_t addr, const void * datain, uint32_t len) {
 
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
-    assert(!PyErr_Occurred());  // Callback may raise an exception. But we don't want to override an existing one.
+    
+    /* `Parameter_setter` may be called many times before we call the `on_python_slash_execute_post_hook()`.
+        Imagine that we're throwing up a ball, and blindly waiting for it to possibly come back down. */
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+    }
 
     PythonGetSetParameterObject *python_param = python_wraps_vmem(vmem);
 

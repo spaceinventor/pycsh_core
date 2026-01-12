@@ -798,7 +798,7 @@ static void pycsh_decode_err_callback(uint16_t node, uint16_t id, uint8_t debug_
 	/* TODO Kevin: Does it make sense to leave the exception for later?
 		We will continue to call the callback for other parameters anyway,
 		so we could end up stacking many exceptions. */
-	PyErr_Print();
+	//PyErr_Print();
 }
 
 

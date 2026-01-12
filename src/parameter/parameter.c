@@ -696,7 +696,12 @@ static void Parameter_dealloc(ParameterObject *self) {
 void Parameter_callback(param_t * param, int offset) {
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
     assert(Parameter_wraps_param(param));
-    assert(!PyErr_Occurred());  // Callback may raise an exception. But we don't want to override an existing one.
+    
+    /* `Parameter_callback` may be called many times before we call the `on_python_slash_execute_post_hook()`.
+        Imagine that we're throwing up a ball, and blindly waiting for it to possibly come back down. */
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+    }
 
     PyObject *key AUTO_DECREF = PyLong_FromVoidPtr(param);
     ParameterObject *python_param = (ParameterObject*)PyDict_GetItem((PyObject*)param_callback_dict, key);
