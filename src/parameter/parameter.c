@@ -784,17 +784,19 @@ ParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, param_ty
             return NULL;
     }
 
-    if (param_list_find_id(0, id) != NULL) {
+#if 0   /* It is permissable for duplicate wrapper instances to exist, as long as only 1 of them is added to the parameter list. */
+    if (param_list_find_id(host, id) != NULL) {
         /* Run away as quickly as possible if this ID is already in use, we would otherwise get a segfault, which is driving me insane. */
         PyErr_Format(PyExc_ValueError, "Parameter with id %d already exists", id);
         return NULL;
     }
 
-    if (param_list_find_name(0, name)) {
+    if (param_list_find_name(host, name)) {
         /* While it is perhaps technically acceptable, it's probably best if we don't allow duplicate names either. */
         PyErr_Format(PyExc_ValueError, "Parameter with name \"%s\" already exists", name);
         return NULL;
     }
+#endif
 
     if (!is_valid_callback(callback, true)) {
         return NULL;  // Exception message set by is_valid_callback();
@@ -810,6 +812,8 @@ ParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, param_ty
         /* This is likely a memory allocation error, in which case we expect .tp_alloc() to have raised an exception. */
         return NULL;
     }
+
+    *(self->param->node) = self->host;  /* TODO Kevin: Possibly breaking some functionality for requesting remote parameters here. Confirm with unit-test. */
 
     /* NULL callback becomes None on a ParameterObject instance */
     if (callback == NULL)
@@ -841,6 +845,7 @@ static PyObject * Parameter_new(PyTypeObject *cls, PyObject * args, PyObject * k
     int retries = 0;
     int paramver = 2;
 
+    /* TODO Kevin: Should `host` and `node` be separate arguments. */
     static char *kwlist[] = {"id", "name", "type", "mask", "array_size", "callback", "unit", "docstr", "host", "timeout", "retries", "paramver", NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args, kwds, "HsiO|iOzziiii", kwlist, &id, &name, &param_type, &mask_obj, &array_size, &callback, &unit, &docstr, &host, &timeout, &retries, &paramver))

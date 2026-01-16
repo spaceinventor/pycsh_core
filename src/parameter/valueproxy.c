@@ -312,16 +312,6 @@ int ValueProxy_ass_subscript(ValueProxyObject *self, PyObject *key, PyObject* va
 
     PyObject * AUTO_DECREF success = _pycsh_util_set_array_indexes(self->param, value, key, self->remote, self->host, self->timeout, self->retries, self->paramver, self->verbose);
 
-    /* We could also `_pycsh_util_set_array_indexes()` raise a `TypeError`.
-        But we can make the message a bit clearer by doing it ourselves. */
-    if (PyErr_Occurred()) {
-        #if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
-            PyErr_Format(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None, not `%s`", key->ob_type->tp_name);
-        #else
-            _PyErr_FormatFromCause(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None, not `%s`", key->ob_type->tp_name);
-        #endif
-    }
-
     return success ? 0 : -1;
 }
 

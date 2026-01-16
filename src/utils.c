@@ -1766,7 +1766,8 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
     
     PyObject * const indexes_iter AUTO_DECREF = PyObject_GetIter(indexes);
     if (!indexes_iter) {
-        assert(PyErr_Occurred());
+        PyErr_Clear();
+		PyErr_Format(PyExc_TypeError, "indices must be integers, slices, Iterable[int] or None, not `%s`", indexes->ob_type->tp_name);
         return NULL;
     }
 

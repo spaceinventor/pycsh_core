@@ -26,7 +26,7 @@
  */
 extern const char *pycsh_version_string;
 
-extern bool csp_initialized();
+extern bool csp_initialized(void);
 
 #define CSP_INIT_CHECK() \
 	if (!csp_initialized()) {\
