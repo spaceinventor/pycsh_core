@@ -815,6 +815,11 @@ ParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, param_ty
 
     *(self->param->node) = self->host;  /* TODO Kevin: Possibly breaking some functionality for requesting remote parameters here. Confirm with unit-test. */
 
+    /* Found existing `Parameter` instance, which isn't using our `param_t` instance. */
+    if (self->param != new_param) {
+        param_list_destroy(new_param);
+    }
+
     /* NULL callback becomes None on a ParameterObject instance */
     if (callback == NULL)
         callback = Py_None;
