@@ -210,7 +210,7 @@ struct bin_info_t {
 	unsigned count;
 	char entries[BIN_PATH_MAX_ENTRIES][BIN_PATH_MAX_SIZE];
 };
-extern struct bin_info_t bin_info;
+struct bin_info_t bin_info __attribute__((weak));
 
 // Binary file byte offset of entry point address.
 // C21: 4, E70: 2C4
@@ -310,19 +310,36 @@ static int upload_and_verify(int node, int address, char * data, int len) {
 	return 0;
 }
 
-extern void rdp_opt_set();
-extern void rdp_opt_reset();
+unsigned int rdp_tmp_window __attribute__((weak));
+unsigned int rdp_tmp_conn_timeout __attribute__((weak));
+unsigned int rdp_tmp_packet_timeout __attribute__((weak));
+unsigned int rdp_tmp_delayed_acks __attribute__((weak));
+unsigned int rdp_tmp_ack_timeout __attribute__((weak));
+unsigned int rdp_tmp_ack_count __attribute__((weak));
+
+unsigned int rdp_dfl_window __attribute__((weak));
+unsigned int rdp_dfl_conn_timeout __attribute__((weak));
+unsigned int rdp_dfl_packet_timeout __attribute__((weak));
+unsigned int rdp_dfl_ack_timeout __attribute__((weak));
+unsigned int rdp_dfl_ack_count __attribute__((weak));
+unsigned int rdp_dfl_delayed_acks __attribute__((weak));
+
+ __attribute__((weak)) void rdp_opt_set(void) {
+
+	csp_rdp_set_opt(rdp_tmp_window, rdp_tmp_conn_timeout, rdp_tmp_packet_timeout, rdp_tmp_delayed_acks, rdp_tmp_ack_timeout, rdp_tmp_ack_count);
+
+	printf("Using RDP options window: %u, conn_timeout: %u, packet_timeout: %u, ack_timeout: %u, ack_count: %u\n",
+        rdp_tmp_window, rdp_tmp_conn_timeout, rdp_tmp_packet_timeout, rdp_tmp_ack_timeout, rdp_tmp_ack_count);
+}
+
+ __attribute__((weak)) void rdp_opt_reset(void) {
+
+	csp_rdp_set_opt(rdp_dfl_window, rdp_dfl_conn_timeout, rdp_dfl_packet_timeout, rdp_dfl_delayed_acks, rdp_dfl_ack_timeout, rdp_dfl_ack_count);
+}
 
 static void _auto_reset_rdp(void ** stuff) {
 	rdp_opt_reset();
 }
-
-extern unsigned int rdp_tmp_window;
-extern unsigned int rdp_tmp_conn_timeout;
-extern unsigned int rdp_tmp_packet_timeout;
-extern unsigned int rdp_tmp_delayed_acks;
-extern unsigned int rdp_tmp_ack_timeout;
-extern unsigned int rdp_tmp_ack_count;
 
 #define RDP_KWARGS "window", "conn_timeout", "packet_timeout", "delayed_acks", "ack_timeout", "ack_count"
 #define RDP_OPTS &rdp_tmp_window, &rdp_tmp_conn_timeout, &rdp_tmp_packet_timeout, &rdp_tmp_delayed_acks, &rdp_tmp_ack_timeout, &rdp_tmp_ack_count
