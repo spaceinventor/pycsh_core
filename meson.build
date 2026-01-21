@@ -2,8 +2,9 @@ project('pycsh_core', 'c')
 
 conf = configuration_data()
 include_dir = include_directories('.', 'include')
+python3_dep = dependency('python3', required: true)  # We don't actually need Python as dep here when we have the linker args, but it might help VSC with highlighting.
 dependencies = [
-	dependency('python3', required: true),  # We don't actually need Python as dep here when we have the linker args, but it might help VSC with highlighting.
+	python3_dep
 ]
 slash_dep = dependency('slash', fallback: ['slash', 'slash_dep'], required: true)
 
@@ -51,13 +52,18 @@ conf.set('PYCSH_HAVE_SLASH', slash_dep.found())
 
 pycsh_config_h = configure_file(output: 'pycshconfig.h', configuration: conf, install_dir: 'include/csh/', install: false)
 
+apm_csh_dep = dependency('apm_csh', fallback: ['apm_csh', 'apm_csh_dep'], required: true).partial_dependency(
+	links: false, 
+	includes: true
+)
+param_dep = dependency('param', fallback: ['param', 'param_dep'], required: true)
+csp_dep = dependency('csp', fallback: ['csp', 'csp_dep'], required: true)
+
+
 dependencies += [
-	dependency('apm_csh', fallback: ['apm_csh', 'apm_csh_dep'], required: true).partial_dependency(
-		links: false, 
-		includes: true
-	),
-	dependency('param', fallback: ['param', 'param_dep'], required: true),
-	dependency('csp', fallback: ['csp', 'csp_dep'], required: true),
+	apm_csh_dep,
+	param_dep,
+	csp_dep,
 	slash_dep,
 ]
 
@@ -73,7 +79,27 @@ pycsh_core_dep = declare_dependency(
 	dependencies: dependencies
 )
 
+pycsh_deps = [
+	python3_dep,
+	apm_csh_dep,
+	param_dep,
+	csp_dep,
+	# the .as_link_whole() is to force linking of the builtin commands
+	slash_dep.as_link_whole(),
+]
 py = import('python').find_installation('python'+get_option('python3_version'), pure: false)
+python_ldflags = run_command('python'+py.language_version()+'-config', '--ldflags', '--embed', check: true).stdout().strip().split()
+pycsh_ext = py.extension_module(
+	'pycsh',
+	pycsh_sources,
+	dependencies : pycsh_deps,
+	include_directories: [include_dir],
+	link_args : python_ldflags + ['-Wl,-Map=' + meson.project_name() + '.map'],
+	install : true,
+	subdir: 'pycsh',
+	gnu_symbol_visibility: 'default',
+)
+
 # Add .pyi file for type-hints
 pyi = configure_file(input: 'pycsh.pyi', output: 'pycsh.pyi', copy: true)
 __init__py = configure_file(input: '__init__.py', output: '__init__.py', copy: true)

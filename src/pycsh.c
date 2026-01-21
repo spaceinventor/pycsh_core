@@ -69,6 +69,9 @@
 static_assert(sizeof(unsigned int) == sizeof(uint32_t));
 
 int pycsh_dfl_verbose = -1;
+unsigned int slash_dfl_node __attribute__((weak));
+unsigned int slash_dfl_timeout __attribute__((weak));
+
 
 void * onehz_task(void * param) {
 	while(1) {

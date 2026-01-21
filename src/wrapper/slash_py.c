@@ -11,6 +11,19 @@ PyObject * pycsh_slash_execute(PyObject * self, PyObject * args, PyObject * kwds
         So while we don't call CSP_INIT_CHECK() here, segfaults may occur.
         But this isn't different from CSH, so it's probably okay. */
 
+    /* Check if any slash commands are available, if not, call slash_list_init()
+    In CSH context, this will have been done before we even get there, in standalone context,
+    we call slash_list_init() here to make sure the builtins are registered. */
+    slash_list_iterator i = {};
+    int nof_slash_cmds = 0;
+    while (slash_list_iterate(&i) != NULL) {
+        nof_slash_cmds++;
+        break;
+    }
+    if(nof_slash_cmds == 0) {
+        slash_list_init();
+    }
+
     char * command = NULL;
 
     static char *kwlist[] = {"command", NULL};
