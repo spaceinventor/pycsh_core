@@ -535,9 +535,7 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 }
 
 typedef struct pycsh_queue_apply_context_s {
-	param_queue_apply_context_t vanilla_context;  /* Original context from libparam */
 
-	param_decode_callback_f err_callback;
 	PyObject * py_err_callback;
 
 	/* TODO Kevin: Now that the callback is called for every parameter,
@@ -573,12 +571,8 @@ static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, i
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
 		Although we are SOL if those unexpected parameters are not in the list.
 		TODO Kevin: Make sure ParameterList accounts for this scenario. */
-	param_queue_apply_w_callback(&queue, from, context->err_callback, context);
+	param_queue_apply(&queue, from, verbose);
 
-	/* Should we always print error here, no matter `verbose`? */
-	if(verbose && !((param_queue_apply_context_t*)context)->num_unknown_params && !((param_queue_apply_context_t*)context)->num_known_params) {
-		printf("No parameters returned in response\n");
-	}
 
 	csp_buffer_free(response);
 }
@@ -761,46 +755,6 @@ bool is_valid_err_callback(const PyObject *callback, bool raise_exc) {
 }
 
 
-static void pycsh_decode_err_callback(uint16_t node, uint16_t id, uint8_t debug_level, param_t * param, pycsh_queue_apply_context_t * context) {
-
-	if (!context) {
-		return;
-	}
-	/* Call the original callback, to get error and normal prints. */
-	param_queue_apply_callback(node, id, debug_level, param, &context->vanilla_context);
-
-	if (param) {
-		/* This parameter was successfully decoded,
-			but this callback is only for errors... for now. */
-		return;
-	}
-
-	if (!context->py_err_callback) {
-		return;
-	}
-
-	if (context->threads_suspended) {
-		/* We make an attempt to use the macros here,
-			in case the functions the use change in the future. */
-		PyThreadState * _save = context->threads_suspended;
-		Py_BLOCK_THREADS;
-		context->threads_suspended = NULL;
-	}
-
-	assert(is_valid_err_callback(context->py_err_callback, false));
-
-	assert(!PyErr_Occurred());
-	PyObject *args AUTO_DECREF = Py_BuildValue("ii", node, id);
-    //PyObject * args AUTO_DECREF = PyTuple_Pack(2, python_param, pyoffset);
-    /* Call the user Python callback */
-    PyObject *value AUTO_DECREF = PyObject_CallObject(context->py_err_callback, args);
-
-	/* TODO Kevin: Does it make sense to leave the exception for later?
-		We will continue to call the callback for other parameters anyway,
-		so we could end up stacking many exceptions. */
-	//PyErr_Print();
-}
-
 
 int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask, uint32_t exclude_mask, int timeout, int version, PyObject * py_err_callback) {
 
@@ -820,11 +774,7 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
 	PyThreadState * Py_UNBLOCK_THREADS;
 	
 	pycsh_queue_apply_context_t context = {
-		.vanilla_context = {
-			.verbose = verbose,
-			.debug_print_level = param_queue_dbg_level,
-		},
-		.err_callback = (param_decode_callback_f)pycsh_decode_err_callback,
+		
 		.py_err_callback = py_err_callback,
 
 		.threads_suspended = _save,  /* Created when expanding `Py_BEGIN_ALLOW_THREADS` or `Py_UNBLOCK_THREADS` */
