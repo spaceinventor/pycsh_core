@@ -95,12 +95,14 @@ pycsh_ext = py.extension_module(
 	dependencies : pycsh_deps,
 	include_directories: [include_dir],
 	link_args : python_ldflags + ['-Wl,-Map=' + meson.project_name() + '.map'],
-	install : true,
+	install : get_option('install'),
 	subdir: 'pycsh',
 	gnu_symbol_visibility: 'default',
 )
 
-# Add .pyi file for type-hints
-pyi = configure_file(input: 'pycsh.pyi', output: 'pycsh.pyi', copy: true)
-__init__py = configure_file(input: '__init__.py', output: '__init__.py', copy: true)
-py.install_sources([pyi, __init__py], subdir: 'pycsh')
+if get_option('install')
+	# Add .pyi file for type-hints
+	pyi = configure_file(input: 'pycsh.pyi', output: 'pycsh.pyi', copy: true)
+	__init__py = configure_file(input: '__init__.py', output: '__init__.py', copy: true)
+	py.install_sources([pyi, __init__py], subdir: 'pycsh')
+endif

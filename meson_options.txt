@@ -1,1 +1,2 @@
 option('python3_version', type: 'string', value: '3', yield: true, description: 'Which version of Python to compile bindings for')
+option('install', type: 'boolean', value: true, description: 'Whether to install `pycsh_core`')
