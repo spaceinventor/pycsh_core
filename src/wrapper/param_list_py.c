@@ -186,11 +186,11 @@ int param_list_remove_py(int node, uint8_t verbose) {
 	int count = 0;
 
 	param_list_iterator i = {};
-	param_t * iter_param = param_list_iterate(&i);
+	const param_t * iter_param = param_list_iterate(&i);
 
 	while (iter_param) {
 
-		param_t * param = iter_param;  // Free the current parameter after we have used it to iterate.
+		const param_t * param = iter_param;  // Free the current parameter after we have used it to iterate.
 		iter_param = param_list_iterate(&i);
 
 		if (i.phase == 0)  // Protection against removing static parameters

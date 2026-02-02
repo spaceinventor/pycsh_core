@@ -14,6 +14,7 @@
 #include "structmember.h"
 
 #include <param/param.h>
+#include <vmem/vmem.h>
 
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
