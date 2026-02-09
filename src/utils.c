@@ -460,7 +460,10 @@ static void pycsh_param_queue_apply_listless(param_queue_t * queue, param_list_t
 			if (skip_list) {
 				/* List parameters have already been applied by param_queue_apply(). */
 				const param_t * const list_param = param_list_find_id(node, id);
-				if (list_param != NULL) {
+				/* TODO Kevin: How to handle when the parameter list holds a different instance than `param` (aka: `list_param != param`),
+					which `param_queue_apply()` would have applied the value to instead. How do we handle the callback then?
+					For now we will just apply the value with callback for each instance. */
+				if ((list_param != NULL) && (list_param == param)) {
 					/* Print the local RAM copy of the remote parameter (which is not in the list) */
 					// if (verbose) {
 					// 	param_print(param, -1, NULL, 0, verbose, 0);
