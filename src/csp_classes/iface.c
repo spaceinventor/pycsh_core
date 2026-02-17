@@ -236,11 +236,7 @@ PyObject * Interface_set_promisc(InterfaceObject * self, PyObject * args) {
     return NULL;
 #else
 
-    int csp_zmqhub_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me);
-    if (self->iface->nexthop != csp_zmqhub_tx) {
-        PyErr_SetString(PyExc_NotImplementedError, "`Interface.set_promisc()` can currently only be called on ZMQ interfaces");
-        return NULL;
-    }
+    int ret = 0;
 
 	int new_promisc = false;
 
@@ -248,10 +244,15 @@ PyObject * Interface_set_promisc(InterfaceObject * self, PyObject * args) {
 		return NULL;
 	}
 
-	if (new_promisc) {
-        csp_zmqhub_remove_filters(self->iface);
+    if (new_promisc) {
+        ret = csp_zmqhub_remove_filters(self->iface);
     } else {
-        csp_zmqhub_add_filters(self->iface);
+        ret = csp_zmqhub_add_filters(self->iface);
+    }
+
+    if (ret < 0) {
+        PyErr_SetString(PyExc_NotImplementedError, "`Interface.set_promisc()` can currently only be called on ZMQ interfaces");
+        return NULL;
     }
 
 	Py_RETURN_NONE;
