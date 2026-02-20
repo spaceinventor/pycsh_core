@@ -306,7 +306,7 @@ param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObjec
 
 	if (PyUnicode_Check(host)) {  // is_string
 		unsigned int node = -1;
-		const char * hostname_str = (char*)PyUnicode_AsUTF8(param_identifier);
+		const char * hostname_str = (char*)PyUnicode_AsUTF8(host);
 		if (0 >= get_host_by_addr_or_name(&node, hostname_str)) {
 			PyErr_Format(PyExc_LookupError, "'%s' does not resolve to a valid CSP address", hostname_str);
 			return NULL;
