@@ -74,6 +74,11 @@ int pycsh_get_num_required_args(const PyObject *function, bool raise_exc);
    May raise TypeError or ValueError, returned value will be NULL in either case. */
 param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node);
 
+/**
+	If `host` is a Python string, assume it to be hostname of the node. Otherwise it is int node.
+ */
+param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObject * host);
+
 
 /* Public interface for '_pycsh_misc_param_t_type()'
    Increments the reference count of the found type before returning. */

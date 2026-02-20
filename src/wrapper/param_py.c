@@ -27,7 +27,7 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 	CSP_INIT_CHECK()
 
 	PyObject * param_identifier;  // Raw argument object/type passed. Identify its type when needed.
-	int node = pycsh_dfl_node;
+	PyObject * node = NULL;
 	int server = INT_MIN;
 	int paramver = 2;
 	PyObject * offset = NULL;  // Using INT_MIN as the least likely value as array Parameters should be backwards subscriptable like lists.
@@ -37,16 +37,16 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	static char *kwlist[] = {"param_identifier", "node", "server", "paramver", "offset", "timeout", "retries", "verbose", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|iiiOiii:get", kwlist, &param_identifier, &node, &server, &paramver, &offset, &timeout, &retries, &verbose))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OiiOiii:get", kwlist, &param_identifier, &node, &server, &paramver, &offset, &timeout, &retries, &verbose))
 		return NULL;  // TypeError is thrown
 
-	param_t *param = _pycsh_util_find_param_t(param_identifier, node);
+	param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
 
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
 
 	/* Select destination, host overrides parameter node */
-	int dest = node;
+	int dest = *param->node;
 	if (server > 0) {
 		dest = server;
 	}
@@ -66,7 +66,7 @@ PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	PyObject * param_identifier;  // Raw argument object/type passed. Identify its type when needed.
 	PyObject * value;
-	int node = pycsh_dfl_node;
+	PyObject * node = NULL;
 	int server = INT_MIN;
 	int paramver = 2;
 	int offset = INT_MIN;  // Using INT_MIN as the least likely value as Parameter arrays should be backwards subscriptable like lists.
@@ -76,16 +76,16 @@ PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {
 
 	static char *kwlist[] = {"param_identifier", "value", "node", "server", "paramver", "offset", "timeout", "retries", "verbose", NULL};
 	
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|iiiiiii:set", kwlist, &param_identifier, &value, &node, &server, &paramver, &offset, &timeout, &retries, &verbose)) {
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "OO|Oiiiiii:set", kwlist, &param_identifier, &value, &node, &server, &paramver, &offset, &timeout, &retries, &verbose)) {
 		return NULL;  // TypeError is thrown
 	}
 
-	param_t *param = _pycsh_util_find_param_t(param_identifier, node);
+	param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
 
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
 
-	int dest = node;
+	int dest = *param->node;
 	if (server > 0)
 		dest = server;
 
