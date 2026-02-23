@@ -10,6 +10,7 @@
 #include <pycsh/utils.h>
 
 #include <dirent.h>
+#include <apm/csh_api.h>
 #include <csp/csp_hooks.h>
 #include <csp/csp_buffer.h>
 #include <param/param_server.h>
@@ -275,24 +276,60 @@ param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node) {
 
 	param_t * param = NULL;
 
-	if (PyUnicode_Check(param_identifier))  // is_string
+	if (PyUnicode_Check(param_identifier)) {  // is_string
 		param = param_list_find_name(node, (char*)PyUnicode_AsUTF8(param_identifier));
-	else if (PyLong_Check(param_identifier))  // is_int
+	} else if (PyLong_Check(param_identifier)) {  // is_int
 		param = param_list_find_id(node, (int)PyLong_AsLong(param_identifier));
-	else if (PyObject_TypeCheck(param_identifier, &ParameterType))
+	} else if (PyObject_TypeCheck(param_identifier, &ParameterType)) {
 		param = ((ParameterObject *)param_identifier)->param;
-	else {  // Invalid type passed.
+	} else {  // Invalid type passed.
 		PyErr_SetString(PyExc_TypeError,
 			"Parameter identifier must be either an integer or string of the parameter ID or name respectively.");
 		return NULL;
 	}
 
-	if (param == NULL)  // Check if a parameter was found.
+	if (param == NULL) {  // Check if a parameter was found.
 		PyErr_SetString(PyExc_ValueError, "Could not find a matching parameter.");
+	}
 
 	return param;  // or NULL for ValueError.
 }
 
+/**
+	If `host` is a Python string, assume it to be hostname of the node. Otherwise it is int node.
+ */
+param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObject * host) {
+
+    if (host == NULL) {
+        return _pycsh_util_find_param_t(param_identifier, pycsh_dfl_node);
+    }
+
+	if (PyUnicode_Check(host)) {  // is_string
+		unsigned int node = -1;
+		const char * hostname_str = (char*)PyUnicode_AsUTF8(host);
+		if (0 >= get_host_by_addr_or_name(&node, hostname_str)) {
+			PyErr_Format(PyExc_LookupError, "'%s' does not resolve to a valid CSP address", hostname_str);
+			return NULL;
+		}
+		return _pycsh_util_find_param_t(param_identifier, node);
+	}
+
+	if (!PyLong_Check(host)) {  // is_int
+		PyErr_Format(PyExc_TypeError, "`host` argument must be `int|str`, not %s", host->ob_type->tp_name);
+		return NULL;
+	}
+
+	int overflow = 2;
+	const long node_long = PyLong_AsLongAndOverflow(host, &overflow);
+	if ((overflow != 2 && overflow != 0) || (!overflow && PyErr_Occurred())) {
+		if (!PyErr_Occurred()) {
+			PyErr_Format(PyExc_ValueError, "Error converting Python int to C int node=%ld overflow=%d", node_long, overflow);
+		}
+		return NULL;
+	}
+
+	return _pycsh_util_find_param_t(param_identifier, (int)node_long);
+}
 
 /* Gets the best Python representation of the param_t's type, i.e 'int' for 'uint32'.
    Does not increment the reference count of the found type before returning.
@@ -460,7 +497,10 @@ static void pycsh_param_queue_apply_listless(param_queue_t * queue, param_list_t
 			if (skip_list) {
 				/* List parameters have already been applied by param_queue_apply(). */
 				const param_t * const list_param = param_list_find_id(node, id);
-				if (list_param != NULL) {
+				/* TODO Kevin: How to handle when the parameter list holds a different instance than `param` (aka: `list_param != param`),
+					which `param_queue_apply()` would have applied the value to instead. How do we handle the callback then?
+					For now we will just apply the value with callback for each instance. */
+				if ((list_param != NULL) && (list_param == param)) {
 					/* Print the local RAM copy of the remote parameter (which is not in the list) */
 					// if (verbose) {
 					// 	param_print(param, -1, NULL, 0, verbose, 0);
@@ -510,12 +550,8 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 	param_list_t * param_list = (param_list_t *)context;
 
 	param_queue_t queue;
-	csp_timestamp_t time_now;
-	csp_clock_get_time(&time_now);
 	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
 	queue.last_node = response->id.src;
-	queue.client_timestamp = time_now;
-	queue.last_timestamp = queue.client_timestamp;
 
 	/* Even though we have been provided a `param_t * param`,
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
@@ -560,12 +596,8 @@ static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, i
 	//printf("From %d\n", from);
 
 	param_queue_t queue;
-	csp_timestamp_t time_now;
-	csp_clock_get_time(&time_now);
 	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
 	queue.last_node = response->id.src;
-	queue.client_timestamp = time_now;
-	queue.last_timestamp = queue.client_timestamp;
 
 	/* Even though we have been provided a `param_t * param`,
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.

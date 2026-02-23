@@ -423,12 +423,12 @@ class Parameter:
         See `ValueProxy.__setitem__` for index argument handling.
         """
 
-    def __new__(cls, param_identifier: _param_ident_hint, node: int = None, host: int = None, timeout: int = None, retries: int = None) -> Parameter:
+    def __new__(cls, param_identifier: _param_ident_hint, node: int|str = None, host: int = None, timeout: int = None, retries: int = None) -> Parameter:
         """
         Find an existing parameter in the global parameter list, using a parameter identifier.
 
         :param param_identifier: an int or string of the parameter ID or name respectively.
-        :param node: Node on which the parameter is located.
+        :param Attempt lookup of known host if string is specified.: Node on which the parameter is located.
         :param timeout: Default timeout period for this parameter in milliseconds.
         :param retries: Number of retries available for timeouts.
 
@@ -438,7 +438,7 @@ class Parameter:
         """
 
     @classmethod
-    def find(cls, param_identifier: _param_ident_hint, node: int = None, host: int = None, timeout: int = None, retries: int = None) -> Parameter:
+    def find(cls, param_identifier: _param_ident_hint, node: int|str = None, host: int = None, timeout: int = None, retries: int = None) -> Parameter:
         """
         Just calls `.__new__()`, really.
         """
@@ -962,12 +962,12 @@ _param_ident_hint = int | str | Parameter  # Types accepted for finding a param_
 
 
 # Libparam commands
-def get(param_identifier: _param_ident_hint, node: int = None, server: int = None, paramver: int = 2, offset: int | slice | _Iterable[int] = None, timeout: int = None, retries: int = None) -> _param_value_hint | tuple[_param_value_hint, ...]:
+def get(param_identifier: _param_ident_hint, node: int|str = None, server: int = None, paramver: int = 2, offset: int | slice | _Iterable[int] = None, timeout: int = None, retries: int = None) -> _param_value_hint | tuple[_param_value_hint, ...]:
     """
     Get the value of a parameter.
 
     :param param_identifier: string name, int id or Parameter object of the desired parameter.
-    :param node: node (default = <env>)
+    :param node: Attempt lookup of known host if string is specified. (default = <env>)
     :param server: server to get parameters from (default = node)
     :param paramver: parameter system version (default = 2)
     :param offset: Index to use for array parameters.
@@ -981,13 +981,13 @@ def get(param_identifier: _param_ident_hint, node: int = None, server: int = Non
     :return: The value of the retrieved parameter (As its Python type).
     """
 
-def set(param_identifier: _param_ident_hint, value: _param_value_hint | _Iterable[int | float], node: int = None, server: int = None, paramver: int = 2, offset: int = None, timeout: int = None, retries: int = None, verbose: int = 2) -> None:
+def set(param_identifier: _param_ident_hint, value: _param_value_hint | _Iterable[int | float], node: int|str = None, server: int = None, paramver: int = 2, offset: int = None, timeout: int = None, retries: int = None, verbose: int = 2) -> None:
     """
     Set the value of a parameter.
 
     :param param_identifier: string name, int id or Parameter object of the desired parameter.
     :param value: The new value of the parameter. .__str__() of the provided object will be used.
-    :param node: node (default = <env>)
+    :param node: Attempt lookup of known host if string is specified. (default = <env>)
     :param server: server to get parameters from (default = node)
     :param paramver: parameter system version (default = 2)
     :param offset: Index to use for array parameters.
