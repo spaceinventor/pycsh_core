@@ -615,8 +615,10 @@ static int Parameter_set_callback(ParameterObject *self, PyObject *value, void *
 
     self->callback = Py_NewRef(value);
     if (self->param->callback == NULL && value != Py_None) {
+        Py_INCREF(self);  /* We need to keep ourselves alive, as the C callback will need to access `self->callback`. */
         self->param->callback = Parameter_callback;
     } else if (self->param->callback == Parameter_callback && value == Py_None) {
+        Py_DECREF(self);  /* C `Parameter_callback` no longer needs `self` for `self->callback`. */
         self->param->callback = NULL;
     }
 
