@@ -34,6 +34,35 @@ void state_release_GIL(PyThreadState ** state);
 #define CLEANUP_GIL __attribute__((cleanup(cleanup_GIL)))
 #define AUTO_DECREF __attribute__((cleanup(cleanup_pyobject)))
 
+
+#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13
+	/* TODO Kevin: Find a good portable way to set exceptions with FromCause across 3.12 and 3.13. */
+	#define PyModule_AddObject_ErrCheck(_mod, _name, _obj)                                                      \
+        if (NULL == _obj) {                                                                                     \
+			PyErr_Format(PyExc_ImportError, "%s is NULL", _name);                                           	\
+            return NULL;                                                                                        \
+        }                                                                                                       \
+        if (PyModule_AddObject(_mod, _name, _obj) < 0) {                                                        \
+            PyErr_Format(PyExc_ImportError, "Failed to add %s to %s", _name, _mod->ob_type->tp_name); 			\
+            return NULL;                                                                                        \
+        }
+	
+#else
+    #define PyModule_AddObject_ErrCheck(_mod, _name, _obj)                                                      \
+        if (NULL == _obj) {                                                                                     \
+            if (PyErr_Occurred()) {                                                                             \
+                _PyErr_FormatFromCause(PyExc_ImportError, "%s is NULL", _name);                                 \
+            } else {                                                                                            \
+                PyErr_Format(PyExc_ImportError, "%s is NULL", _name);                                           \
+            }                                                                                                   \
+            return NULL;                                                                                        \
+        }                                                                                                       \
+        if (PyModule_AddObject(_mod, _name, _obj) < 0) {                                                        \
+            _PyErr_FormatFromCause(PyExc_ImportError, "Failed to add %s to %s", _name, _mod->ob_type->tp_name); \
+            return NULL;                                                                                        \
+        }
+#endif
+
 ATTR_MALLOC(free, 1)
 char *safe_strdup(const char *s);
 
