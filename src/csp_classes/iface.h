@@ -18,6 +18,7 @@ typedef struct {
     /* Practically all CSP interface types have a concept of `promisc`,
         but they don't store the explicit state on the struct.
         Perhaps we should? But we need to know how the interface was initially initialized. */
+    bool is_zmq;
 
 } InterfaceObject;
 
@@ -25,8 +26,8 @@ InterfaceObject * Interface_from_csp_iface_t(PyTypeObject *type, csp_iface_t * i
 //PyObject * Interface_new(PyTypeObject *type, PyObject *args, PyObject *kwds);
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  * @returns New reference
  */
 InterfaceObject * Interface_from_py_identifier(PyObject * identifier/*: int|str|Interface*/);

@@ -80,13 +80,14 @@ InterfaceObject * Interface_from_csp_iface_t(PyTypeObject *type, csp_iface_t * i
 	}
 
 	self->iface = ifc;
+	self->is_zmq = false;
 
 	return self;
 }
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  * @returns New reference
  */
 InterfaceObject * Interface_from_py_identifier(PyObject * identifier/*: int|str|Interface*/) {
@@ -236,8 +237,7 @@ PyObject * Interface_set_promisc(InterfaceObject * self, PyObject * args) {
     return NULL;
 #else
 
-    int csp_zmqhub_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me);
-    if (self->iface->nexthop != csp_zmqhub_tx) {
+    if (self->is_zmq == false) {
         PyErr_SetString(PyExc_NotImplementedError, "`Interface.set_promisc()` can currently only be called on ZMQ interfaces");
         return NULL;
     }
