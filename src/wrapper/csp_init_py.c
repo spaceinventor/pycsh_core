@@ -141,7 +141,7 @@ static char * pycsh_parse_zmq_sec_key(PyObject * key_file_obj, char key_buf[41])
             return NULL;
         }
         strncpy(key_buf, key_str, 40);
-    
+
         return key_buf;
     }
 
@@ -186,7 +186,7 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
 
     char name[10];
     sprintf(name, "ZMQ%u", ifidx++);
-    
+
     unsigned int addr;
     char * server;
     int promisc = 0;
@@ -241,7 +241,9 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     /* TODO Kevin: Find a closed-loop way to wait for the ZMQ connection to come online. */
     usleep(300000);
 
-    return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
+    InterfaceObject * obj = Interface_from_csp_iface_t(&InterfaceType, iface);
+    obj->is_zmq = true;
+    return (PyObject*)obj;
 }
 #endif
 
@@ -308,7 +310,7 @@ PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * 
         return NULL;  // TypeError is thrown
 
    csp_iface_t * iface;
-    
+
     int error = csp_can_socketcan_open_and_add_interface(device, name, addr, baud, promisc, &iface);
     if (error != CSP_ERR_NONE) {
         PyErr_Format(PyExc_SystemError, "failed to add CAN interface [%s], error: %d", device, error);
