@@ -19,14 +19,14 @@ static PyObject * Info_str(InfoObject *self) {
 
 	assert(self->routes && PyTuple_Check(self->routes));
 	Py_ssize_t route_cnt = PyTuple_Size(self->routes);
-	for (size_t i = 0; i < route_cnt; i++) {
+	for (Py_ssize_t i = 0; i < route_cnt; i++) {
 		PyUnicode_AppendAndDel(&info_string, PyObject_Str(PyTuple_GET_ITEM(self->routes, i)));
 		assert(info_string);
 	}
 	
 	assert(self->interfaces && PyTuple_Check(self->interfaces));
 	Py_ssize_t interfaces_cnt = PyTuple_Size(self->interfaces);
-	for (size_t i = 0; i < interfaces_cnt; i++) {
+	for (Py_ssize_t i = 0; i < interfaces_cnt; i++) {
 		PyUnicode_AppendAndDel(&info_string, PyObject_Str(PyTuple_GET_ITEM(self->interfaces, i)));
 		assert(info_string);
 	}
@@ -69,6 +69,7 @@ InfoObject * _Info_new_internal(void) {
 
 ATTR_MALLOC(Info_dealloc, 1)
 PyObject * Info_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
+	(void)type;
 
     static char *kwlist[] = {NULL};
 

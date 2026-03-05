@@ -12,7 +12,7 @@ typedef struct {
     PyObject_HEAD
     /* Type-specific fields go here. */
 
-	param_t * param;
+	const param_t * param;
 
 	int host;
 	int timeout;

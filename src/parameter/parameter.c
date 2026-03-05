@@ -68,7 +68,8 @@ static PyObject * Parameter_str(ParameterObject *self) {
 }
 
 /* Create a Python Parameter object from a param_t pointer directly. */
-PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const PyObject * callback, int host, int timeout, int retries, int paramver, py_param_free_e free_in_dealloc) {
+PyObject * pycsh_Parameter_from_param(PyTypeObject *type, const param_t * param, const PyObject * callback, int host, int timeout, int retries, int paramver, py_param_free_e free_in_dealloc) {
+    (void)callback;  /* TODO Kevin: Probably use `callback` here, but then `param` probably shouldn't be `const` */
 	if (param == NULL) {
  		return NULL;
 	}
@@ -86,7 +87,7 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const
 	}
 
 	{   /* Add ourselves to the callback/lookup dictionary */
-		PyObject *key AUTO_DECREF = PyLong_FromVoidPtr(param);
+		PyObject *key AUTO_DECREF = PyLong_FromVoidPtr((void*)param);
 		assert(key != NULL);
 		assert(!PyErr_Occurred());
 		assert(PyDict_GetItem((PyObject*)param_callback_dict, key) == NULL);
@@ -153,26 +154,32 @@ static PyObject * Parameter_find(PyTypeObject *type, PyObject *args, PyObject *k
 }
 
 static PyObject * Parameter_get_name(ParameterObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("s", self->param->name);
 }
 
 static PyObject * Parameter_get_unit(ParameterObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("s", self->param->unit);
 }
 
 static PyObject * Parameter_get_docstr(ParameterObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("s", self->param->docstr);
 }
 
 static PyObject * Parameter_get_id(ParameterObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("H", self->param->id);
 }
 
 static PyObject * Parameter_get_node(ParameterObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("H", *self->param->node);
 }
 
 static PyObject * Parameter_get_storage_type(ParameterObject *self, void *closure) {
+    (void)closure;
     assert(self->param);
     if (self->param->vmem == NULL) {
         return Py_BuildValue("i", (int)VMEM_TYPE_UNKNOWN);
@@ -182,6 +189,7 @@ static PyObject * Parameter_get_storage_type(ParameterObject *self, void *closur
 
 /* This will change self->param to be one by the same name at the specified node. */
 static int Parameter_set_node(ParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
 	if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the node attribute");
@@ -202,7 +210,7 @@ static int Parameter_set_node(ParameterObject *self, PyObject *value, void *clos
 		return -1;
 	}
 
-	param_t * param = param_list_find_id(node, self->param->id);
+	const param_t * param = param_list_find_id(node, self->param->id);
 
 	if (param == NULL)  // Did not find a match.
 		return -1;  // Raises either TypeError or ValueError.
@@ -213,12 +221,14 @@ static int Parameter_set_node(ParameterObject *self, PyObject *value, void *clos
 }
 
 static PyObject * Parameter_get_host(ParameterObject *self, void *closure) {
+    (void)closure;
 	if (self->host != INT_MIN)
 		return Py_BuildValue("i", self->host);
 	Py_RETURN_NONE;
 }
 
 static int Parameter_set_host(ParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
 	if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the host attribute");
@@ -249,11 +259,13 @@ static int Parameter_set_host(ParameterObject *self, PyObject *value, void *clos
 
 
 static PyObject * Parameter_get_py_type(ParameterObject *self, void *closure) {
-
+    (void)closure;
+    (void)closure;
 	return (PyObject *)Py_NewRef(self->type);
 }
 
 static PyObject * Parameter_gettype_deprecated(ParameterObject *self, void *closure) {
+    (void)closure;
 
 	if (PyErr_WarnEx(PyExc_DeprecationWarning, "Use `.py_type` instead", 2) < 0) {
 		return NULL;
@@ -263,6 +275,7 @@ static PyObject * Parameter_gettype_deprecated(ParameterObject *self, void *clos
 }
 
 static PyObject * Parameter_get_c_type(ParameterObject *self, void *closure) {
+    (void)closure;
 
 	return Py_BuildValue("i", self->param->type);
 }
@@ -270,11 +283,13 @@ static PyObject * Parameter_get_c_type(ParameterObject *self, void *closure) {
 #ifdef OLD_PARAM_API_ERROR
 
 static PyObject * Parameter_get_oldvalue(ParameterObject *self, void *closure) {
+    (void)closure;
 	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
 	return NULL;
 }
 
 static int Parameter_set_oldvalue(ParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 	PyErr_SetString(PyExc_AttributeError, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to: `.get_value()`, `.set_value()`, `.get_value_array()` and `.set_value_array()`.");
 	return -1;
 }
@@ -283,11 +298,13 @@ static int Parameter_set_oldvalue(ParameterObject *self, PyObject *value, void *
 
 
 static PyObject * Parameter_get_valueproxy(ParameterObject *self, void *closure) {
+    (void)closure;
 	/* Default to remote, user can override by calling the ValueProxy, i.e: `.value_index(remote=False)[0]` */
 	return pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
 }
 
 static PyObject * Parameter_get_valueproxy_cached(ParameterObject *self, void *closure) {
+    (void)closure;
 
 	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
 		return NULL;
@@ -303,6 +320,7 @@ static PyObject * Parameter_get_valueproxy_cached(ParameterObject *self, void *c
 }
 
 static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
 	ValueProxyObject * const value_proxy = (ValueProxyObject*)pycsh_ValueProxy_from_Parameter(&ValueProxyType, self);
 	if (!value_proxy) {
@@ -312,6 +330,7 @@ static int Parameter_set_valueproxy(ParameterObject *self, PyObject *value, void
 }
 
 static int Parameter_set_valueproxy_cached(ParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
 	if (PyErr_WarnEx(PyExc_DeprecationWarning, "`Parameter.remote_value` and `Parameter.cached_value` have been changed to `Parameter.value` `ValueProxy` property", 2) < 0) {
 		return -1;
@@ -327,16 +346,19 @@ static int Parameter_set_valueproxy_cached(ParameterObject *self, PyObject *valu
 
 
 static PyObject * Parameter_is_vmem(ParameterObject *self, void *closure) {
+    (void)closure;
 	// I believe this is the most appropriate way to check for vmem parameters.
 	PyObject * result = self->param->vmem == NULL ? Py_False : Py_True;
 	return Py_NewRef(result);
 }
 
 static PyObject * Parameter_get_timeout(ParameterObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("i", self->timeout);
 }
 
 static int Parameter_set_timeout(ParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
 	if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the timeout attribute");
@@ -365,19 +387,23 @@ static int Parameter_set_timeout(ParameterObject *self, PyObject *value, void *c
 }
 
 static PyObject * Parameter_getmask(ParameterObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("I", self->param->mask);
 }
 
 static PyObject * Parameter_gettimestamp(ParameterObject *self, void *closure) {
+    (void)closure;
 	/* TODO Kevin: Convert to float with `->tv_nsec` as decimals */
 	return Py_BuildValue("I", self->param->timestamp->tv_sec);
 }
 
 static PyObject * Parameter_get_retries(ParameterObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("i", self->retries);
 }
 
 static int Parameter_set_retries(ParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
 	if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the retries attribute");
@@ -585,6 +611,7 @@ bool is_valid_callback(const PyObject *callback, bool raise_exc) {
 
 
 static int Parameter_set_callback(ParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the callback attribute");
@@ -632,7 +659,7 @@ static long Parameter_hash(ParameterObject *self) {
 static void Parameter_dealloc(ParameterObject *self) {
 
 	{   /* Remove ourselves from the callback/lookup dictionary */
-        PyObject *key AUTO_DECREF = PyLong_FromVoidPtr(self->param);
+        PyObject *key AUTO_DECREF = PyLong_FromVoidPtr((void*)self->param);
         assert(key != NULL);
 		assert(!PyErr_Occurred());
         if (PyDict_GetItem((PyObject*)param_callback_dict, key) != NULL) {
@@ -693,7 +720,7 @@ static void Parameter_dealloc(ParameterObject *self) {
  * @brief Shared callback for all param_t's wrapped by a Parameter instance,
  * 	that must call a PyObject* callback function.
  */
-void Parameter_callback(param_t * param, int offset) {
+void Parameter_callback(const param_t * param, int offset) {
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
     assert(Parameter_wraps_param(param));
     
@@ -703,7 +730,7 @@ void Parameter_callback(param_t * param, int offset) {
         PyErr_Print();
     }
 
-    PyObject *key AUTO_DECREF = PyLong_FromVoidPtr(param);
+    PyObject *key AUTO_DECREF = PyLong_FromVoidPtr((void*)param);
     ParameterObject *python_param = (ParameterObject*)PyDict_GetItem((PyObject*)param_callback_dict, key);
 
     /* This param_t uses the Python Parameter callback, but doesn't actually point to a Parameter.
@@ -829,7 +856,9 @@ ParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, param_ty
         return NULL;
     }
 
-    ((ParameterObject*)self)->param->callback = Parameter_callback;
+    assert(new_param == self->param);
+    //((ParameterObject*)self)->param->callback = Parameter_callback;
+    new_param->callback = Parameter_callback;
 
     return self;
 }
@@ -874,12 +903,18 @@ static PyObject * Parameter_new(PyTypeObject *cls, PyObject * args, PyObject * k
     /* return should steal the reference created by Parameter_create_new() */
     return (PyObject *)python_param;
 }
+
+/* It seems that pedantic does not like how CPython uses flags to communicate function signature. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 PyMethodDef Parameter_class_methods[2] = {
-	{"new", (PyCFunction)Parameter_new, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Create an entirely new parameter, instead of just wrapping an existing one"},
-	{"find", (PyCFunction)Parameter_find, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Find an existing parameter in the global parameter list, using a parameter identifier."},
+	{"new", (PyCFunctionWithKeywords)Parameter_new, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Create an entirely new parameter, instead of just wrapping an existing one"},
+	{"find", (PyCFunctionWithKeywords)Parameter_find, METH_VARARGS | METH_KEYWORDS | METH_CLASS, "Find an existing parameter in the global parameter list, using a parameter identifier."},
 };
+#pragma GCC diagnostic pop
 
 static PyObject * Parameter_get_callback(ParameterObject *self, void *closure) {
+    (void)closure;
 
     if (self->param->callback != Parameter_callback) {
         Py_RETURN_NONE;  /* TODO Kevin: What to do when the user tries to get the callback for a C parameter? */
@@ -991,7 +1026,7 @@ static PyGetSetDef Parameter_getsetters[] = {
 	{"retries", (getter)Parameter_get_retries, (setter)Parameter_set_retries,
      PyDoc_STR("available retries of the parameter"), NULL},
 #endif
-    {NULL, NULL, NULL, NULL}  /* Sentinel */
+    {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
 static PyObject * Parameter_list_add(ParameterObject *self, PyObject *args, PyObject *kwds) {
@@ -1004,7 +1039,7 @@ static PyObject * Parameter_list_add(ParameterObject *self, PyObject *args, PyOb
 		return NULL;  // TypeError is thrown
 	}
 
-	param_t * const list_param = param_list_find_id(*self->param->node, self->param->id);
+	const param_t * const list_param = param_list_find_id(*self->param->node, self->param->id);
 	
 	if (list_param == self->param) {
 		/* Existing parameter is ourself.
@@ -1016,7 +1051,7 @@ static PyObject * Parameter_list_add(ParameterObject *self, PyObject *args, PyOb
 
 
 	/* res==1=="existing parameter updated" */
-	const int res = param_list_add(self->param);
+	const int res = param_list_add((param_t*)self->param);
 
     /* `self` is now added to the list.
         Although if we updated an existing parameter,
@@ -1064,13 +1099,18 @@ static PyObject * Parameter_list_forget(ParameterObject *self, PyObject *args, P
 
 	Py_RETURN_NONE;
 }
+
+/* It seems that pedantic does not like how CPython uses flags to communicate function signature. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 static PyMethodDef Parameter_methods[] = {
-    {"list_add", (PyCFunction)Parameter_list_add, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Add `self` the global parameter list. Exposes it to other CSP nodes on the network, "\
+    {"list_add", (PyCFunctionWithKeywords)Parameter_list_add, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Add `self` the global parameter list. Exposes it to other CSP nodes on the network, "\
 		"And allows it to be found in `pycsh.list()`")},
-    {"list_forget", (PyCFunction)Parameter_list_forget, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Remove this parameter from the global parameter list. Hiding it from other CSP nodes on the network. "\
+    {"list_forget", (PyCFunctionWithKeywords)Parameter_list_forget, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Remove this parameter from the global parameter list. Hiding it from other CSP nodes on the network. "\
 		"Also removes it from `pycsh.list()`")},
     {NULL, NULL, 0, NULL}
 };
+#pragma GCC diagnostic pop
 
 PyTypeObject ParameterType = {
     PyVarObject_HEAD_INIT(NULL, 0)

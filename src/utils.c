@@ -274,7 +274,7 @@ int pycsh_get_num_required_args(const PyObject *function, bool raise_exc) {
    May raise TypeError or ValueError, returned value will be NULL in either case. */
 param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node) {
 
-	param_t * param = NULL;
+	const param_t * param = NULL;
 
 	if (PyUnicode_Check(param_identifier)) {  // is_string
 		param = param_list_find_name(node, (char*)PyUnicode_AsUTF8(param_identifier));
@@ -334,7 +334,7 @@ param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObjec
 /* Gets the best Python representation of the param_t's type, i.e 'int' for 'uint32'.
    Does not increment the reference count of the found type before returning.
    May raise TypeError for unsupported parameter types (none exist at time of writing). */
-static PyTypeObject * _pycsh_misc_param_t_type(param_t * param) {
+static PyTypeObject * _pycsh_misc_param_t_type(const param_t * param) {
 
 	PyTypeObject * param_type = NULL;
 
@@ -383,7 +383,7 @@ PyObject * pycsh_util_get_type(PyObject * self, PyObject * args) {
 	PyObject * param_identifier;
 	int node = pycsh_dfl_node;
 
-	param_t * param;
+	const param_t * param;
 
 	/* Function may be called either as method on 'Parameter' object or standalone function. */
 	
@@ -409,7 +409,7 @@ PyObject * pycsh_util_get_type(PyObject * self, PyObject * args) {
 	return (PyObject *)_pycsh_misc_param_t_type(param);
 }
 
-ParameterObject * Parameter_wraps_param(param_t *param) {
+ParameterObject * Parameter_wraps_param(const param_t *param) {
 	/* TODO Kevin: If it ever becomes possible to assert() the held state of the GIL,
 		we would definitely want to do it here. We don't want to use PyGILState_Ensure()
 		because the GIL should still be held after returning. */
@@ -421,7 +421,7 @@ ParameterObject * Parameter_wraps_param(param_t *param) {
 		return NULL;
 	}
 
-	PyObject * const key AUTO_DECREF = PyLong_FromVoidPtr(param);
+	PyObject * const key AUTO_DECREF = PyLong_FromVoidPtr((void*)param);
 	assert(PyDict_Check(param_callback_dict));
     ParameterObject * const python_param = (ParameterObject*)PyDict_GetItem((PyObject*)param_callback_dict, key);
 
@@ -438,8 +438,8 @@ PyObject * pycsh_util_parameter_list(uint32_t mask, int node, const char * globs
 
 	PyObject * list = PyObject_CallObject((PyObject *)&ParameterListType, NULL);
 
-	param_t * param;
-	param_list_iterator i = {};
+	const param_t * param;
+	param_list_iterator i = {0};
 	while ((param = param_list_iterate(&i)) != NULL) {
 
 		if ((node >= 0) && (*param->node != node)) {
@@ -470,7 +470,7 @@ PyObject * pycsh_util_parameter_list(uint32_t mask, int node, const char * globs
 
 typedef struct param_list_s {
 	size_t cnt;
-	param_t ** param_arr;
+	const param_t ** param_arr;
 } param_list_t;
 
 /* Do not apply parameters to the global list, only use the provided one */
@@ -482,7 +482,7 @@ static void pycsh_param_queue_apply_listless(param_queue_t * queue, param_list_t
 
     int atomic_write = 0;
 	for (size_t i = 0; i < param_list->cnt; i++) {  /* Apply value to provided param_t* if they aren't in the list. */
-		param_t * param = param_list->param_arr[i];
+		const param_t * param = param_list->param_arr[i];
 
 		/* Loop over paramid's in pull response */
 		mpack_reader_t reader;
@@ -838,7 +838,7 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
 }
 
 
-static int pycsh_param_push_single(param_t *param, int offset, int prio, void *value, int verbose, int host, int timeout, int version, bool ack_with_pull) {
+static int pycsh_param_push_single(const param_t *param, int offset, int prio, void *value, int verbose, int host, int timeout, int version, bool ack_with_pull) {
 
 	csp_packet_t * packet = csp_buffer_get(PARAM_SERVER_MTU);
 	if (packet == NULL)
@@ -890,7 +890,7 @@ static int pycsh_param_push_single(param_t *param, int offset, int prio, void *v
 }
 
 
-static int pycsh_param_pull_single(param_t *param, int offset, int prio, int verbose, int host, int timeout, int version) {
+static int pycsh_param_pull_single(const param_t *param, int offset, int prio, int verbose, int host, int timeout, int version) {
 
 	csp_packet_t * packet = csp_buffer_get(PARAM_SERVER_MTU);
 	if (packet == NULL)
@@ -918,7 +918,7 @@ static int pycsh_param_pull_single(param_t *param, int offset, int prio, int ver
 }
 
 
-static int pycsh_param_pull_queue(param_queue_t *queue, param_t *params, unsigned int param_cnt, int prio, int verbose, int host, int timeout, int version) {
+static int pycsh_param_pull_queue(param_queue_t *queue, const param_t *params, unsigned int param_cnt, int prio, int verbose, int host, int timeout, int version) {
 
 	csp_packet_t * packet = csp_buffer_get(PARAM_SERVER_MTU);
 	if (packet == NULL)
@@ -1018,7 +1018,7 @@ int _pycsh_util_index(int seqlen, int *index) {
 /* Private interface for getting the value of single parameter
    Increases the reference count of the returned item before returning.
    Use INT_MIN for offset as no offset. */
-PyObject * _pycsh_util_get_single(param_t *param, const int offset_orig, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+PyObject * _pycsh_util_get_single(const param_t *param, const int offset_orig, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
 
 	int offset = offset_orig;
 	if (offset != INT_MIN) {
@@ -1031,7 +1031,7 @@ PyObject * _pycsh_util_get_single(param_t *param, const int offset_orig, int aut
 
 		bool no_reply = false;
 		Py_BEGIN_ALLOW_THREADS;
-		for (size_t i = 0; i < (retries > 0 ? retries : 1); i++) {
+		for (int i = 0; i < (retries > 0 ? retries : 1); i++) {
 			int param_pull_res;
 			param_pull_res = pycsh_param_pull_single(param, offset, CSP_PRIO_NORM, 1, (host != INT_MIN ? host : *param->node), timeout, paramver);
 			if (param_pull_res && i >= retries-1) {
@@ -1284,7 +1284,7 @@ static PyObject * _pycsh_get_str_value(PyObject * obj) {
 
 		ParameterObject *paramobj = ((ParameterObject *)obj);
 
-		param_t * param = paramobj->param;
+		const param_t * param = paramobj->param;
 		int host = paramobj->host;
 		int timeout = paramobj->timeout;
 		int retries = paramobj->retries;
@@ -1316,14 +1316,14 @@ static PyObject * _iter_to_str(PyObject * iterable) {
 
 /* Private interface for getting the value of an array parameter
    Increases the reference count of the returned tuple before returning.  */
-PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+PyObject * _pycsh_util_get_array(const param_t *param, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
 
 	// Pull the value for every index using a queue (if we're allowed to),
 	// instead of pulling them individually.
 	if (autopull && *param->node != 0) {
 		#if 0  /* Pull array parameters with index -1, like CSH. We may change this in the future */
 		uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
-		param_queue_t queue = { };
+		param_queue_t queue = {0};
 		param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_GET, paramver);
 
 		for (int i = 0; i < param->array_size; i++) {
@@ -1333,7 +1333,7 @@ PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int tim
 
 		bool no_reply = false;
 		Py_BEGIN_ALLOW_THREADS;
-		for (size_t i = 0; i < (retries > 0 ? retries : 1); i++) {
+		for (int i = 0; i < (retries > 0 ? retries : 1); i++) {
 			if (pycsh_param_pull_single(param, -1, CSP_PRIO_NORM, 0, *param->node, timeout, paramver)) {
 				no_reply = true;
 				break;
@@ -1439,7 +1439,7 @@ static int obj_to_index_in_range(PyObject *index, int seqlen) {
 
 /* Only pulls from remote, does not construct value.
     Pull multiple specific indexes from a single parameter. */
-static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+static int _pycsh_param_pull_single_indexes(const param_t *param, PyObject *indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
 
 	if (param->type == PARAM_TYPE_STRING || param->type == PARAM_TYPE_DATA) {
 		/* Always pull entirety of STRING and DATA parameters */
@@ -1465,7 +1465,7 @@ static int _pycsh_param_pull_single_indexes(param_t *param, PyObject *indexes, i
 	PyObject *index;
 
 	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
-	param_queue_t queue = { };
+	param_queue_t queue = {0};
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_GET, paramver);
 
 	while ((index = PyIter_Next(index_iter)) != NULL) {
@@ -1561,7 +1561,7 @@ static PyObject* slice_c_string(const char* c_str, Py_ssize_t c_len, PyObject* s
 #endif
 
 
-static PyObject * _index_zip(PyObject * value_array, PyObject *iter, int verbose, param_t * param) {
+static PyObject * _index_zip(PyObject * value_array, PyObject *iter, int verbose, const param_t * param) {
 
 	Py_ssize_t value_len = PyObject_Length(value_array);
 	if (value_len < 0) {
@@ -1629,7 +1629,7 @@ static PyObject * _index_zip(PyObject * value_array, PyObject *iter, int verbose
 
 /* Similar to `_pycsh_util_get_array()`, but accepts a `PyObject * indexes`,
 	which will be iterated to map out specific indexes to retrieve/return. */
-PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indicies_raw, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
+PyObject * _pycsh_util_get_array_indexes(const param_t *param, PyObject * indicies_raw, int autopull, int host, int timeout, int retries, int paramver, int verbose) {
 
 	assert(param);
 	if (param->type == PARAM_TYPE_DATA) {
@@ -1682,7 +1682,7 @@ PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indicies_raw
 }
 
 
-PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyObject * indexes, int autopush, int host, int timeout, int retries, int paramver, int verbose) {
+PyObject * _pycsh_util_set_array_indexes(const param_t *param, PyObject * values, PyObject * indexes, int autopush, int host, int timeout, int retries, int paramver, int verbose) {
 
     assert(param);
     assert(values);
@@ -1731,7 +1731,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
 	}
 
     uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
-	param_queue_t queue = { };
+	param_queue_t queue = {0};
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 
 	if (PyLong_Check(indexes)) {
@@ -1785,7 +1785,7 @@ PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyOb
             return NULL;
         }
 
-        char valuebuf[128] __attribute__((aligned(16))) = { };
+        char valuebuf[128] __attribute__((aligned(16))) = {0};
         _pyval_to_param_valuebuf(valuebuf, value, param->type);
         if (param_queue_add(&queue, param, offset, valuebuf) < 0) {
 			PyErr_SetString(PyExc_MemoryError, "Queue full");
@@ -1864,7 +1864,7 @@ static int _pycsh_typecheck_sequence(PyObject * sequence, PyTypeObject * type) {
 
 /* Private interface for setting the value of a normal parameter. 
    Use INT_MIN as no offset. */
-int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host, int timeout, int retries, int paramver, int remote, int verbose) {
+int _pycsh_util_set_single(const param_t *param, PyObject *value, int offset, int host, int timeout, int retries, int paramver, int remote, int verbose) {
 	
 	if (offset == INT_MIN) {
         offset = -1;
@@ -1879,7 +1879,7 @@ int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host
         }
     }
 
-	char valuebuf[128] __attribute__((aligned(16))) = { };
+	char valuebuf[128] __attribute__((aligned(16))) = {0};
  	_pyval_to_param_valuebuf(valuebuf, value, param->type);
 
 	int dest = (host != INT_MIN ? host : *param->node);
@@ -1888,7 +1888,7 @@ int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host
 	//	confirm that it still behaves like the original (especially for remote host parameters).
 	if (remote && (dest != 0)) {  // When allowed, set remote parameter immediately.
 
-		for (size_t i = 0; i < (retries > 0 ? retries : 1); i++) {
+		for (int i = 0; i < (retries > 0 ? retries : 1); i++) {
 			int param_push_res;
 			Py_BEGIN_ALLOW_THREADS;  // Only allow threads for remote parameters, as local ones could have Python callbacks.
 			param_push_res = pycsh_param_push_single(param, offset, 0, valuebuf, 1, dest, timeout, paramver, true);
@@ -1933,7 +1933,7 @@ int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host
 }
 
 /* Private interface for setting the value of an array parameter. */
-int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout, int retries, int paramver, int verbose) {
+int _pycsh_util_set_array(const param_t *param, PyObject *value, int host, int timeout, int retries, int paramver, int verbose) {
 
 	PyObject * _value AUTO_DECREF = value;
 
@@ -1971,12 +1971,12 @@ int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout
 	}
 
 	// TODO Kevin: This does not allow for queued operations on array parameters.
-	//	This could be implemented by simply replacing 'param_queue_t queue = { };',
+	//	This could be implemented by simply replacing 'param_queue_t queue = {0};',
 	//	with the global queue, but then we need to handle freeing the buffer.
 	// TODO Kevin: Also this queue is not used for local parameters (and therefore wasted).
 	//	Perhaps structure the function to avoid its unecessary instantiation.
 	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
-	param_queue_t queue = { };
+	param_queue_t queue = {0};
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 	
 	for (int i = 0; i < seqlen; i++) {

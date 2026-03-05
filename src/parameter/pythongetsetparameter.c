@@ -154,6 +154,7 @@ static int _pycsh_param_pyval_to_cval(param_type_e type, PyObject * value_in, vo
             break;
 		case PARAM_TYPE_INT64:
 			*(int64_t*)dataout = (int64_t)PyLong_AsLong(value_in);
+            break;
 		case PARAM_TYPE_FLOAT:
 			*(float*)dataout = (float)PyFloat_AsDouble(value_in);
             break;
@@ -182,8 +183,8 @@ static int _pycsh_param_pyval_to_cval(param_type_e type, PyObject * value_in, vo
 /**
  * @brief Shared getter for all param_t's wrapped by a Parameter instance.
  */
-void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len) {
-
+void Parameter_getter(const vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len) {
+    (void)len;
 
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
 
@@ -239,7 +240,8 @@ void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len
 /**
  * @brief Shared setter for all param_t's wrapped by a Parameter instance.
  */
-void Parameter_setter(vmem_t * vmem, uint64_t addr, const void * datain, uint32_t len) {
+void Parameter_setter(const vmem_t * vmem, uint64_t addr, const void * datain, uint32_t len) {
+    (void)len;
 
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
     
@@ -477,10 +479,12 @@ static void PythonGetSetParameter_dealloc(PythonGetSetParameterObject *self) {
 }
 
 static PyObject * Parameter_get_getter(PythonGetSetParameterObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->getter_func);
 }
 
 int Parameter_set_getter(PythonGetSetParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the getter attribute");
@@ -525,10 +529,12 @@ int Parameter_set_getter(PythonGetSetParameterObject *self, PyObject *value, voi
 }
 
 static PyObject * Parameter_get_setter(PythonGetSetParameterObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->setter_func);
 }
 
 int Parameter_set_setter(PythonGetSetParameterObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the setter attribute");
@@ -661,7 +667,7 @@ static PyGetSetDef PythonParameter_getsetters[] = {
      "getter of the parameter", NULL},
     {"setter", (getter)Parameter_get_setter, (setter)Parameter_set_setter,
      "setter of the parameter", NULL},
-    {NULL, NULL, NULL, NULL}  /* Sentinel */
+    {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
 PyTypeObject PythonGetSetParameterType = {

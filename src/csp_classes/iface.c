@@ -89,7 +89,7 @@ InterfaceObject * Interface_from_csp_iface_t(PyTypeObject *type, csp_iface_t * i
  * 
  * @returns New reference
  */
-InterfaceObject * Interface_from_py_identifier(PyObject * identifier/*: int|str|Interface*/) {
+InterfaceObject * Interface_from_py_identifier(PyTypeObject *type, PyObject * identifier/*: int|str|Interface*/) {
 	if (PyLong_Check(identifier)) {
 
 		/* All 3 of these are quite cool, but `_addr()` and `_subnet()` don't account for dual-CAN. */
@@ -113,9 +113,10 @@ InterfaceObject * Interface_from_py_identifier(PyObject * identifier/*: int|str|
 			return NULL;
 		}
 
-		return Interface_from_csp_iface_t(&InterfaceType, ifc);
+		return Interface_from_csp_iface_t(type, ifc);
 	}
 
+	//if (PyObject_IsInstance(identifier, (PyObject*)&InterfaceType)) {
 	if (PyObject_IsInstance(identifier, (PyObject*)&InterfaceType)) {
 		return (InterfaceObject*)Py_NewRef(identifier);
 	}
@@ -135,75 +136,89 @@ PyObject * Interface_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
     }
 
     /* If NULL is returned here, it is likely a memory allocation error, in which case we expect .tp_alloc() to have raised an exception. */
-	return (PyObject*)Interface_from_py_identifier(identifier);
+	return (PyObject*)Interface_from_py_identifier(type, identifier);
 }
 
 static PyObject * Interface_get_addr(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong((unsigned long) self->iface->addr);
 }
 
 static PyObject * Interface_get_netmask(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong((unsigned long) self->iface->netmask);
 }
 
 static PyObject * Interface_get_name(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyUnicode_FromString(self->iface->name);
 }
 
 static PyObject * Interface_get_is_default(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyBool_FromLong((long) self->iface->is_default);
 }
 
 static PyObject * Interface_get_tx(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->tx);
 }
 
 static PyObject * Interface_get_rx(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->rx);
 }
 
 static PyObject * Interface_get_tx_error(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->tx_error);
 }
 
 static PyObject * Interface_get_rx_error(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->rx_error);
 }
 
 static PyObject * Interface_get_drop(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->drop);
 }
 
 static PyObject * Interface_get_autherr(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->autherr);
 }
 
 static PyObject * Interface_get_frame(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->frame);
 }
 
 static PyObject * Interface_get_txbytes(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->txbytes);
 }
 
 static PyObject * Interface_get_rxbytes(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->rxbytes);
 }
 
 static PyObject * Interface_get_irq(InterfaceObject *self, void *closure) {
+    (void)closure;
     assert(self->iface);
     return PyLong_FromUnsignedLong(self->iface->irq);
 }

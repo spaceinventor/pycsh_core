@@ -210,30 +210,37 @@ static long Ident_hash(IdentObject *self) {
 
 #if 0
 static PyObject * Ident_get_node(IdentObject *self, void *closure) {
+    (void)closure;
     return Py_BuildValue("i", self->id.src);
 }
 
 static PyObject * Ident_get_hostname(IdentObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->hostname);
 }
 
 static PyObject * Ident_get_model(IdentObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->model);
 }
 
 static PyObject * Ident_get_revision(IdentObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->revision);
 }
 
 static PyObject * Ident_get_date(IdentObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->date);
 }
 
 static PyObject * Ident_get_time(IdentObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->time);
 }
 
 static PyObject * Ident_get_datetime(IdentObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->datetime);
 }
 
@@ -247,7 +254,7 @@ static PyGetSetDef Ident_getsetters[] = {
     {"time", (getter)Ident_get_time, NULL, "Returns the time of Ident reply", NULL},
     {"datetime", (getter)Ident_get_datetime, NULL, "Returns the datetime of Ident reply", NULL},
      
-    {NULL, NULL, NULL, NULL}  /* Sentinel */
+    {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 #else
 static PyMemberDef Ident_members[] = {

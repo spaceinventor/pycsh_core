@@ -96,10 +96,12 @@ static PyObject * SlashCommand_new(PyTypeObject *type, PyObject *args, PyObject 
 
 // TODO Kevin: _set_name
 static PyObject * SlashCommand_get_name(SlashCommandObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("s", self->command->name);
 }
 
 static PyObject * SlashCommands_get_args(SlashCommandObject *self, void *closure) {
+    (void)closure;
 	return Py_BuildValue("s", self->command->args);
 }
 
@@ -274,7 +276,7 @@ static PyGetSetDef Parameter_getsetters[] = {
      "Returns the name of the wrapped slash_command.", NULL},
     {"args", (getter)SlashCommands_get_args, NULL,
      "The args string of the slash_command.", NULL},
-    {NULL, NULL, NULL, NULL}  /* Sentinel */
+    {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
 PyTypeObject SlashCommandType = {

@@ -851,6 +851,7 @@ static bool is_valid_slash_func(const PyObject *function, bool raise_exc, bool s
 }
 
 int PythonSlashCommand_set_func(PythonSlashCommandObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the function attribute");
@@ -889,10 +890,12 @@ int PythonSlashCommand_set_func(PythonSlashCommandObject *self, PyObject *value,
 }
 
 static PyObject * PythonSlashCommand_get_keep_alive(PythonSlashCommandObject *self, void *closure) {
+    (void)closure;
     return self->keep_alive ? Py_True : Py_False;
 }
 
 static int PythonSlashCommand_set_keep_alive(PythonSlashCommandObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the keep_alive attribute");
@@ -1083,6 +1086,7 @@ static PyObject * PythonSlashCommand_new(PyTypeObject *type, PyObject * args, Py
 }
 
 static PyObject * PythonSlashCommand_get_function(PythonSlashCommandObject *self, void *closure) {
+    (void)closure;
     return Py_NewRef(self->py_slash_func);
 }
 
@@ -1099,7 +1103,7 @@ static PyGetSetDef PythonSlashCommand_getsetters[] = {
     {"function", (getter)PythonSlashCommand_get_function, (setter)PythonSlashCommand_set_func,
      "function invoked by the slash command", NULL},
     // TODO Kevin: Maybe PythonSlashCommandObject should have getsetters for 'name' and 'args'
-    {NULL, NULL, NULL, NULL}  /* Sentinel */
+    {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
 PyTypeObject PythonSlashCommandType = {

@@ -22,6 +22,7 @@
 #include "param_list_py.h"
 
 PyObject * pycsh_param_list(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     int node = pycsh_dfl_node;
     int verbosity = 1;
@@ -50,6 +51,7 @@ PyObject * pycsh_param_list(PyObject * self, PyObject * args, PyObject * kwds) {
 }
 
 PyObject * pycsh_param_list_download(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     CSP_INIT_CHECK()
 
@@ -82,6 +84,8 @@ PyObject * pycsh_param_list_download(PyObject * self, PyObject * args, PyObject 
 }
 
 PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
+
     unsigned int node;
     unsigned int length;
     unsigned int id;
@@ -132,7 +136,7 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
 
     /* This guard clause above only exists to provide a more specific error message than the ones below.
         We could remove this guard clause if we wanted. */
-    param_t * const existing_param = param_list_find_id(node, id);
+    const param_t * const existing_param = param_list_find_id(node, id);
     if (raise_exc && existing_param) {
         PyErr_Format(PyExc_LookupError, "Parameter om node %d and id %d already exists, by the name of '%s'", node, id, existing_param->name);
         return NULL;
@@ -145,11 +149,13 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
         return NULL;
     }
 
+    bool wrap_existing = false;
     const int _list_add_res = param_list_add(param);
     switch (_list_add_res) {
         case 1: {  /* Updated existing parameter */
             param_list_destroy(param);
-            param = existing_param;
+            //param = existing_param;
+            wrap_existing = true;
             break;  /* All good, carry on */
         }
         case 0: {
@@ -161,7 +167,7 @@ PyObject * pycsh_param_list_add(PyObject * self, PyObject * args, PyObject * kwd
         }
     }
 
-    PyObject * const param_instance AUTO_DECREF = pycsh_Parameter_from_param(&ParameterType, param, NULL, INT_MIN, pycsh_dfl_timeout, 1, 2, PY_PARAM_FREE_LIST_DESTROY);
+    PyObject * const param_instance AUTO_DECREF = pycsh_Parameter_from_param(&ParameterType, (wrap_existing ? existing_param : param), NULL, INT_MIN, pycsh_dfl_timeout, 1, 2, PY_PARAM_FREE_LIST_DESTROY);
 
     if (param_instance == NULL) {
         /* There's a possibility that we update an existing `param_t` here, but then fail to create the `Parameter` wrapper,
@@ -185,7 +191,7 @@ int param_list_remove_py(int node, uint8_t verbose) {
 
 	int count = 0;
 
-	param_list_iterator i = {};
+	param_list_iterator i = {0};
 	const param_t * iter_param = param_list_iterate(&i);
 
 	while (iter_param) {
@@ -234,6 +240,7 @@ int param_list_remove_py(int node, uint8_t verbose) {
 }
 
 PyObject * pycsh_param_list_forget(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     int node = pycsh_dfl_node;
     int verbose = 1;
@@ -252,6 +259,7 @@ PyObject * pycsh_param_list_forget(PyObject * self, PyObject * args, PyObject * 
 }
 
 PyObject * pycsh_param_list_save(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     char * filename = NULL;
     int node = pycsh_dfl_node;

@@ -66,7 +66,7 @@
 #include "wrapper/victoria_metrics_py.h"
 
 /* Assertions used when parsing Python arguments, i.e int -> uint32_t */
-static_assert(sizeof(unsigned int) == sizeof(uint32_t));
+static_assert(sizeof(unsigned int) == sizeof(uint32_t), "Parsing Python arguments, i.e int -> uint32_t");
 
 int pycsh_dfl_verbose = -1;
 unsigned int slash_dfl_node __attribute__((weak));
@@ -74,6 +74,7 @@ unsigned int slash_dfl_timeout __attribute__((weak));
 
 
 void * onehz_task(void * param) {
+	(void)param;
 	while(1) {
 #ifdef PARAM_HAVE_SCHEDULER
 		csp_timestamp_t scheduler_time = {};
@@ -176,76 +177,80 @@ static PyObject * pycsh_init(PyObject * self, PyObject * args, PyObject *kwds) {
 	return Py_NewRef(self);
 }
 
-
+/* It seems that pedantic does not like how CPython uses flags to communicate function signature. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 static PyMethodDef methods[] = {
 
 	/* Converted CSH commands from libparam/src/param/param_slash.c */
-	{"get", 		(PyCFunction)pycsh_param_get, 	METH_VARARGS | METH_KEYWORDS, "Set the value of a parameter."},
-	{"set", 		(PyCFunction)pycsh_param_set, 	METH_VARARGS | METH_KEYWORDS, "Get the value of a parameter."},
+	{"get", 		(PyCFunctionWithKeywords)pycsh_param_get, 	METH_VARARGS | METH_KEYWORDS, "Set the value of a parameter."},
+	{"set", 		(PyCFunctionWithKeywords)pycsh_param_set, 	METH_VARARGS | METH_KEYWORDS, "Get the value of a parameter."},
 	// {"push", 		(PyCFunction)pycsh_param_push,	METH_VARARGS | METH_KEYWORDS, "Push the current queue."},
-	{"pull", 		(PyCFunction)pycsh_param_pull,	METH_VARARGS | METH_KEYWORDS, "Pull all or a specific set of parameters."},
+	{"pull", 		(PyCFunctionWithKeywords)pycsh_param_pull,	METH_VARARGS | METH_KEYWORDS, "Pull all or a specific set of parameters."},
 	{"cmd_done", 	pycsh_param_cmd_done, 			METH_NOARGS, 				  "Clears the queue."},
-	{"cmd_new", 	(PyCFunction)pycsh_param_cmd_new,METH_VARARGS | METH_KEYWORDS,"Create a new command"},
-	{"node", 		(PyCFunction)pycsh_slash_node, 	METH_VARARGS | METH_KEYWORDS, "Used to get or change the default node."},
-	{"timeout", 	(PyCFunction)pycsh_slash_timeout,METH_VARARGS | METH_KEYWORDS,"Used to get or change the default timeout."},
+	{"cmd_new", 	(PyCFunctionWithKeywords)pycsh_param_cmd_new,METH_VARARGS | METH_KEYWORDS,"Create a new command"},
+	{"node", 		(PyCFunctionWithKeywords)pycsh_slash_node, 	METH_VARARGS | METH_KEYWORDS, "Used to get or change the default node."},
+	{"timeout", 	(PyCFunctionWithKeywords)pycsh_slash_timeout,METH_VARARGS | METH_KEYWORDS,"Used to get or change the default timeout."},
 	{"verbose", 	pycsh_slash_verbose, 			METH_VARARGS, 		  		  "Used to get or change the default parameter verbosity."},
 	{"queue", 		pycsh_param_cmd,			  	METH_NOARGS, 				  "Print the current command."},
 
 	/* Converted CSH commands from libparam/src/param/list/param_list_slash.c */
-	{"list", 		(PyCFunction)pycsh_param_list,		      METH_VARARGS | METH_KEYWORDS, "List all known parameters."},
-	{"list_download",(PyCFunction)pycsh_param_list_download,  METH_VARARGS | METH_KEYWORDS, "Download all parameters on the specified node."},
-	{"list_forget", (PyCFunction)pycsh_param_list_forget, 	  METH_VARARGS | METH_KEYWORDS, "Remove remote parameters, matching the provided arguments, from the global list."},
-	{"list_save", 	(PyCFunction)pycsh_param_list_save, 	  METH_VARARGS | METH_KEYWORDS, "Save a list of parameters to a file."},
-	{"list_add", 	(PyCFunction)pycsh_param_list_add, 	      METH_VARARGS | METH_KEYWORDS, "Add a paramter to the global list."},
+	{"list", 		(PyCFunctionWithKeywords)pycsh_param_list,		      METH_VARARGS | METH_KEYWORDS, "List all known parameters."},
+	{"list_download",(PyCFunctionWithKeywords)pycsh_param_list_download,  METH_VARARGS | METH_KEYWORDS, "Download all parameters on the specified node."},
+	{"list_forget", (PyCFunctionWithKeywords)pycsh_param_list_forget, 	  METH_VARARGS | METH_KEYWORDS, "Remove remote parameters, matching the provided arguments, from the global list."},
+	{"list_save", 	(PyCFunctionWithKeywords)pycsh_param_list_save, 	  METH_VARARGS | METH_KEYWORDS, "Save a list of parameters to a file."},
+	{"list_add", 	(PyCFunctionWithKeywords)pycsh_param_list_add, 	      METH_VARARGS | METH_KEYWORDS, "Add a paramter to the global list."},
 
 	// {"list_load", 	pycsh_param_list_load, 		  	METH_VARARGS, 				  "Load a list of parameters from a file."},
 
 	/* Converted CSH commands from csh/src/slash_csp.c */
 	{"info", 		(PyCFunction)pycsh_csp_info, 	METH_NOARGS, "Return local CSP interfaces and Routes"},
-	{"ping", 		(PyCFunction)pycsh_slash_ping, 	METH_VARARGS | METH_KEYWORDS, "Ping the specified node."},
-	{"ident", 		(PyCFunction)pycsh_slash_ident,	METH_VARARGS | METH_KEYWORDS, "Print the identity of the specified node."},
-	{"uptime", 		(PyCFunction)pycsh_csp_cmp_uptime,	METH_VARARGS | METH_KEYWORDS, "Return uptime information of the specified node."},
-	{"ifstat", 		(PyCFunction)pycsh_csp_cmp_ifstat,	METH_VARARGS | METH_KEYWORDS, "Return information about the specified interface."},
+	{"ping", 		(PyCFunctionWithKeywords)pycsh_slash_ping, 	METH_VARARGS | METH_KEYWORDS, "Ping the specified node."},
+	{"ident", 		(PyCFunctionWithKeywords)pycsh_slash_ident,	METH_VARARGS | METH_KEYWORDS, "Print the identity of the specified node."},
+	{"uptime", 		(PyCFunctionWithKeywords)pycsh_csp_cmp_uptime,	METH_VARARGS | METH_KEYWORDS, "Return uptime information of the specified node."},
+	{"ifstat", 		(PyCFunctionWithKeywords)pycsh_csp_cmp_ifstat,	METH_VARARGS | METH_KEYWORDS, "Return information about the specified interface."},
 	{"reboot", 		pycsh_slash_reboot, 			 	METH_VARARGS, 				  "Reboot the specified node."},
 
 	/* Utility functions */
 	{"get_type", 	pycsh_util_get_type, 		  	METH_VARARGS, 				  "Gets the type of the specified parameter."},
-	{"slash_execute", (PyCFunction)pycsh_slash_execute, 			METH_VARARGS | METH_KEYWORDS, "Execute string as a slash command. Used to run .csh scripts"},
+	{"slash_execute", (PyCFunctionWithKeywords)pycsh_slash_execute, 			METH_VARARGS | METH_KEYWORDS, "Execute string as a slash command. Used to run .csh scripts"},
 
 	/* Converted vmem commands from libparam/src/vmem/vmem_client_slash.c */
-	{"vmem", 	(PyCFunction)pycsh_param_vmem,   METH_VARARGS | METH_KEYWORDS, "Builds a string of the vmem at the specified node."},
+	{"vmem", 	(PyCFunctionWithKeywords)pycsh_param_vmem,   METH_VARARGS | METH_KEYWORDS, "Builds a string of the vmem at the specified node."},
 
 	/* Converted vmem commands from libparam/src/vmem/vmem_client.c */
-	{"vmem_download", (PyCFunction)pycsh_vmem_download,   METH_VARARGS | METH_KEYWORDS, "Download a vmem area."},
-	{"vmem_upload", (PyCFunction)pycsh_vmem_upload,   METH_VARARGS | METH_KEYWORDS, "Upload data to a vmem area."},
+	{"vmem_download", (PyCFunctionWithKeywords)pycsh_vmem_download,   METH_VARARGS | METH_KEYWORDS, "Download a vmem area."},
+	{"vmem_upload", (PyCFunctionWithKeywords)pycsh_vmem_upload,   METH_VARARGS | METH_KEYWORDS, "Upload data to a vmem area."},
 
 	/* Converted program/reboot commands from csh/src/spaceboot_slash.c */
-	{"switch", 	(PyCFunction)slash_csp_switch,   METH_VARARGS | METH_KEYWORDS, "Reboot into the specified firmware slot."},
-	{"program", (PyCFunction)pycsh_csh_program,  METH_VARARGS | METH_KEYWORDS, "Upload new firmware to a module."},
-	{"sps", 	(PyCFunction)slash_sps,   		 METH_VARARGS | METH_KEYWORDS, "Switch -> Program -> Switch"},
+	{"switch", 	(PyCFunctionWithKeywords)slash_csp_switch,   METH_VARARGS | METH_KEYWORDS, "Reboot into the specified firmware slot."},
+	{"program", (PyCFunctionWithKeywords)pycsh_csh_program,  METH_VARARGS | METH_KEYWORDS, "Upload new firmware to a module."},
+	{"sps", 	(PyCFunctionWithKeywords)slash_sps,   		 METH_VARARGS | METH_KEYWORDS, "Switch -> Program -> Switch"},
 
 	/* Wrappers for src/csp_init_cmd.c */
-	{"csp_init", 	(PyCFunction)pycsh_csh_csp_init,   METH_VARARGS | METH_KEYWORDS, "Initialize CSP"},
+	{"csp_init", 	(PyCFunctionWithKeywords)pycsh_csh_csp_init,   METH_VARARGS | METH_KEYWORDS, "Initialize CSP"},
 #ifdef CSP_HAVE_LIBZMQ
-	{"csp_add_zmq", (PyCFunction)pycsh_csh_csp_ifadd_zmq,   METH_VARARGS | METH_KEYWORDS, "Add a new ZMQ interface"},
+	{"csp_add_zmq", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_zmq,   METH_VARARGS | METH_KEYWORDS, "Add a new ZMQ interface"},
 	/* TODO Kevin: Probably add some error property if we don't have ZMQ, so we can tell the user that it isn't installed.
 		Other than just giving a plain non-descript `AttributeError` */
 #endif
-	{"csp_add_kiss",(PyCFunction)pycsh_csh_csp_ifadd_kiss,   METH_VARARGS | METH_KEYWORDS, "Add a new KISS/UART interface"},
+	{"csp_add_kiss",(PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_kiss,   METH_VARARGS | METH_KEYWORDS, "Add a new KISS/UART interface"},
 #if (CSP_HAVE_LIBSOCKETCAN)
-	{"csp_add_can", (PyCFunction)pycsh_csh_csp_ifadd_can,   METH_VARARGS | METH_KEYWORDS, "Add a new UDP interface"},
+	{"csp_add_can", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_can,   METH_VARARGS | METH_KEYWORDS, "Add a new UDP interface"},
 #endif
-	{"csp_add_eth", (PyCFunction)pycsh_csh_csp_ifadd_eth,   METH_VARARGS | METH_KEYWORDS, "Add a new ethernet interface"},
-	{"csp_add_udp", (PyCFunction)pycsh_csh_csp_ifadd_udp,   METH_VARARGS | METH_KEYWORDS, "Add a new UDP interface"},
-	{"csp_add_tun", (PyCFunction)pycsh_csh_csp_ifadd_tun,   METH_VARARGS | METH_KEYWORDS, "Add a new TUN interface"},
+	{"csp_add_eth", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_eth,   METH_VARARGS | METH_KEYWORDS, "Add a new ethernet interface"},
+	{"csp_add_udp", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_udp,   METH_VARARGS | METH_KEYWORDS, "Add a new UDP interface"},
+	{"csp_add_tun", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_tun,   METH_VARARGS | METH_KEYWORDS, "Add a new TUN interface"},
 
-	{"csp_add_route", (PyCFunction)pycsh_csh_csp_routeadd_cmd,   METH_VARARGS | METH_KEYWORDS, "Add a new route"},
+	{"csp_add_route", (PyCFunctionWithKeywords)pycsh_csh_csp_routeadd_cmd,   METH_VARARGS | METH_KEYWORDS, "Add a new route"},
 
 	/* Misc */
-	{"init", (PyCFunction)pycsh_init, 				METH_VARARGS | METH_KEYWORDS, "Initializes the module, with the provided settings."},
+	{"init", (PyCFunctionWithKeywords)pycsh_init, 				METH_VARARGS | METH_KEYWORDS, "Initializes the module, with the provided settings."},
 
 	/* sentinel */
-	{NULL, NULL, 0, NULL}};
+	{NULL, NULL, 0, NULL}
+};
+#pragma GCC diagnostic pop
 
 static struct PyModuleDef moduledef = {
 	PyModuleDef_HEAD_INIT,
