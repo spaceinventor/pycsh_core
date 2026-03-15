@@ -25,7 +25,13 @@ typedef struct {
     /* Type-specific fields go here. */
 	PyTypeObject *type;  // Best Python representation of the parameter type, i.e 'int' for uint32.
 
-	const param_t * param;
+	/* Whether this ParameterObject wraps a const param_t,
+		which should never be freed. */
+	unsigned int is_const : 1;  
+	union {
+		const param_t * const_param;
+		param_t * param;
+	};
 
 	int host;
 	int timeout;

@@ -119,7 +119,13 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, const param_t * param,
 	}
 
 	self->host = (host != INT_MIN) ? host : *param->node;
-	self->param = param;
+    if (param_is_static(param)) {
+        self->is_const = 1;
+        self->const_param = param;
+    } else {
+        self->is_const = 0;
+        self->param = (param_t *)param;
+    }
 	self->timeout = timeout;
 	self->retries = retries;
 	self->paramver = paramver;
@@ -145,7 +151,7 @@ static PyObject * Parameter_find(PyTypeObject *type, PyObject *args, PyObject *k
 		return NULL;  // TypeError is thrown
 	}
 
-	param_t * param = _pycsh_util_find_param_t_hostname(param_identifier, node);
+	const param_t * param = _pycsh_util_find_param_t_hostname(param_identifier, node);
 
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
@@ -173,11 +179,6 @@ static PyObject * Parameter_get_id(ParameterObject *self, void *closure) {
 	return Py_BuildValue("H", self->param->id);
 }
 
-static PyObject * Parameter_get_node(ParameterObject *self, void *closure) {
-    (void)closure;
-	return Py_BuildValue("H", *self->param->node);
-}
-
 static PyObject * Parameter_get_storage_type(ParameterObject *self, void *closure) {
     (void)closure;
     assert(self->param);
@@ -187,6 +188,12 @@ static PyObject * Parameter_get_storage_type(ParameterObject *self, void *closur
 	return Py_BuildValue("i", self->param->vmem->type);
 }
 
+static PyObject * Parameter_get_node(ParameterObject *self, void *closure) {
+    (void)closure;
+	return Py_BuildValue("H", *self->param->node);
+}
+
+#if 0
 /* This will change self->param to be one by the same name at the specified node. */
 static int Parameter_set_node(ParameterObject *self, PyObject *value, void *closure) {
     (void)closure;
@@ -219,6 +226,7 @@ static int Parameter_set_node(ParameterObject *self, PyObject *value, void *clos
 
 	return 0;
 }
+#endif
 
 static PyObject * Parameter_get_host(ParameterObject *self, void *closure) {
     (void)closure;
@@ -689,12 +697,10 @@ static void Parameter_dealloc(ParameterObject *self) {
 
 	assert(self->param);
 	const param_t * const list_param = param_list_find_id(*self->param->node, self->param->id);
-	if (list_param == NULL || list_param != self->param) {
+	if (!self->is_const && (list_param == NULL || list_param != self->param)) {
 		/* Our parameter is not in the list, we should free it. */
 		param_list_destroy(self->param);
 	}
-
-	
 
 	#if 0
 	if (self->free_in_dealloc == PY_PARAM_FREE_PARAM_T) {
@@ -992,7 +998,7 @@ static PyGetSetDef Parameter_getsetters[] = {
      PyDoc_STR("mask of the parameter"), NULL},
 	{"timestamp", (getter)Parameter_gettimestamp, NULL,
      PyDoc_STR("timestamp of the parameter"), NULL},
-	{"node", (getter)Parameter_get_node, (setter)Parameter_set_node,
+	{"node", (getter)Parameter_get_node, NULL,
      PyDoc_STR("node of the parameter"), NULL},
 #endif
 
@@ -1040,6 +1046,14 @@ static PyObject * Parameter_list_add(ParameterObject *self, PyObject *args, PyOb
 	}
 
 	const param_t * const list_param = param_list_find_id(*self->param->node, self->param->id);
+
+    if (self->is_const) {
+        /* Assert that const/static parameters are always in the list.
+            Mostly because we assume that's how we found it in the first place. */
+        assert(list_param == self->const_param);
+        /* In any case, it can't be modified */
+        Py_RETURN_NONE;
+    }
 	
 	if (list_param == self->param) {
 		/* Existing parameter is ourself.
@@ -1051,7 +1065,7 @@ static PyObject * Parameter_list_add(ParameterObject *self, PyObject *args, PyOb
 
 
 	/* res==1=="existing parameter updated" */
-	const int res = param_list_add((param_t*)self->param);
+	const int res = param_list_add(self->param);
 
     /* `self` is now added to the list.
         Although if we updated an existing parameter,
@@ -1072,7 +1086,8 @@ static PyObject * Parameter_list_add(ParameterObject *self, PyObject *args, PyOb
 	param_list_remove_specific(self->param, 0, true);
 
 	/* NOTE: This assignment has big implications of state. */
-	self->param = list_param;
+    assert(!param_is_static(list_param));
+	self->param = (param_t *)list_param;
 
 	return return_self ? Py_NewRef(self) : Py_BuildValue("i", res);
 }

@@ -272,7 +272,7 @@ int pycsh_get_num_required_args(const PyObject *function, bool raise_exc) {
 
 /* Retrieves a param_t from either its name, id or wrapper object.
    May raise TypeError or ValueError, returned value will be NULL in either case. */
-param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node) {
+const param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node) {
 
 	const param_t * param = NULL;
 
@@ -298,7 +298,7 @@ param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node) {
 /**
 	If `host` is a Python string, assume it to be hostname of the node. Otherwise it is int node.
  */
-param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObject * host) {
+const param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObject * host) {
 
     if (host == NULL) {
         return _pycsh_util_find_param_t(param_identifier, pycsh_dfl_node);

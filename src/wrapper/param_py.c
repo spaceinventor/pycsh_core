@@ -41,7 +41,7 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OiiOiii:get", kwlist, &param_identifier, &node, &server, &paramver, &offset, &timeout, &retries, &verbose))
 		return NULL;  // TypeError is thrown
 
-	param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
+	const param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
 
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
@@ -82,7 +82,7 @@ PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {
 		return NULL;  // TypeError is thrown
 	}
 
-	param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
+	const param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
 
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
