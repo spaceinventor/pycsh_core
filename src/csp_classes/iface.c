@@ -255,7 +255,7 @@ PyObject * Interface_set_promisc(InterfaceObject * self, PyObject * args) {
     __attribute__((weak))
     int csp_zmqhub_tx(csp_iface_t * iface, uint16_t via, csp_packet_t * packet, int from_me);
     if (csp_zmqhub_tx == NULL) {
-        /* If this symbol isn't found, it can't be a ZMQ interface. */
+        /* If we can't differentiate ZMQ interfaces, then there are no interfaces we can call `Interface.set_promisc()` on. */
         PyErr_SetString(PyExc_NotImplementedError, "Did not find any supported interface types for `Interface.set_promisc()`.");
         return NULL;
     }
