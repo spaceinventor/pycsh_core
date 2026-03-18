@@ -411,27 +411,30 @@ PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * 
 
     csp_iface_t * iface = malloc(sizeof(csp_iface_t));
     if (iface == NULL) {
-        PyErr_NoMemory();
-        return NULL;
+        return PyErr_NoMemory();
     }
     memset(iface, 0, sizeof(csp_iface_t));
     csp_if_udp_conf_t * udp_conf = malloc(sizeof(csp_if_udp_conf_t));
     if (udp_conf == NULL) {
-        PyErr_NoMemory();
-        return NULL;
+        return PyErr_NoMemory();
     }
+    udp_conf->sockfd = 0;
     udp_conf->host = strdup(server);
+    if (udp_conf->host == NULL) {
+        return PyErr_NoMemory();
+    }
     udp_conf->lport = listen_port;
     udp_conf->rport = remote_port;
-    if (udp_conf->host == NULL) {
-        PyErr_NoMemory();
-        return NULL;
-    }
     csp_if_udp_init(iface, udp_conf);
 
     iface->is_default = dfl;
     iface->addr = addr;
     iface->netmask = mask;
+    iface->name = strdup(name);
+    if (iface->name == NULL) {
+        csp_iflist_remove(iface);
+        return PyErr_NoMemory();
+    }
 
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
