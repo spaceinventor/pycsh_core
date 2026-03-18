@@ -19,6 +19,7 @@
 #include <pycsh/pycsh.h>
 
 PyObject * pycsh_vmem_download(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	CSP_INIT_CHECK()
 
@@ -131,6 +132,7 @@ static PyObject* io_object_to_bytes(PyObject *file_obj) {
 }
 
 PyObject * pycsh_vmem_upload(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 	
 	CSP_INIT_CHECK()
 
@@ -212,6 +214,7 @@ PyObject * pycsh_vmem_upload(PyObject * self, PyObject * args, PyObject * kwds) 
 }
 
 PyObject * pycsh_param_vmem(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	CSP_INIT_CHECK()
 

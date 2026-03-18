@@ -23,6 +23,7 @@
 param_queue_t param_queue __attribute__((weak));
 
 PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	CSP_INIT_CHECK()
 
@@ -40,7 +41,7 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|OiiOiii:get", kwlist, &param_identifier, &node, &server, &paramver, &offset, &timeout, &retries, &verbose))
 		return NULL;  // TypeError is thrown
 
-	param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
+	const param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
 
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
@@ -61,6 +62,7 @@ PyObject * pycsh_param_get(PyObject * self, PyObject * args, PyObject * kwds) {
 }
 
 PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	CSP_INIT_CHECK()
 
@@ -80,7 +82,7 @@ PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {
 		return NULL;  // TypeError is thrown
 	}
 
-	param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
+	const param_t *param = _pycsh_util_find_param_t_hostname(param_identifier, node);
 
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
@@ -105,6 +107,8 @@ PyObject * pycsh_param_set(PyObject * self, PyObject * args, PyObject * kwds) {
 }
 
 PyObject * pycsh_param_cmd(PyObject * self, PyObject * args) {
+	(void)self;
+	(void)args;
 
 	if (param_queue.type == PARAM_QUEUE_TYPE_EMPTY) {
 		printf("No active command\n");
@@ -118,6 +122,7 @@ PyObject * pycsh_param_cmd(PyObject * self, PyObject * args) {
 }
 
 PyObject * pycsh_param_pull(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	CSP_INIT_CHECK()
 
@@ -163,6 +168,7 @@ PyObject * pycsh_param_pull(PyObject * self, PyObject * args, PyObject * kwds) {
 }
 
 PyObject * pycsh_param_cmd_new(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	char *type;
 	char *name;
@@ -196,6 +202,8 @@ PyObject * pycsh_param_cmd_new(PyObject * self, PyObject * args, PyObject * kwds
 }
 
 PyObject * pycsh_param_cmd_done(PyObject * self, PyObject * args) {
+	(void)self;
+	(void)args;
 	param_queue.type = PARAM_QUEUE_TYPE_EMPTY;
 	Py_RETURN_NONE;
 }

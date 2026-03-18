@@ -29,7 +29,7 @@ InterfaceObject * Interface_from_csp_iface_t(PyTypeObject *type, csp_iface_t * i
  * 
  * @returns New reference
  */
-InterfaceObject * Interface_from_py_identifier(PyObject * identifier/*: int|str|Interface*/);
+InterfaceObject * Interface_from_py_identifier(PyTypeObject *type, PyObject * identifier/*: int|str|Interface*/);
 
 /* New reference tuple[Interface, ...] */
 PyObject * csp_interfaces_to_tuple(void);

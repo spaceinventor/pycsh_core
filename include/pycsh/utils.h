@@ -101,12 +101,12 @@ int pycsh_get_num_required_args(const PyObject *function, bool raise_exc);
 
 /* Retrieves a param_t from either its name, id or wrapper object.
    May raise TypeError or ValueError, returned value will be NULL in either case. */
-param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node);
+const param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node);
 
 /**
 	If `host` is a Python string, assume it to be hostname of the node. Otherwise it is int node.
  */
-param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObject * host);
+const param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObject * host);
 
 
 /* Public interface for '_pycsh_misc_param_t_type()'
@@ -125,31 +125,31 @@ PyObject * pycsh_util_parameter_list(uint32_t mask, int node, const char * globs
 /* Private interface for getting the value of single parameter
    Increases the reference count of the returned item before returning.
    Use INT_MIN for offset as no offset. */
-PyObject * _pycsh_util_get_single(param_t *param, int offset, int autopull, int host, int timeout, int retries, int paramver, int verbose);
+PyObject * _pycsh_util_get_single(const param_t *param, int offset, int autopull, int host, int timeout, int retries, int paramver, int verbose);
 
 /* Private interface for getting the value of an array parameter
    Increases the reference count of the returned tuple before returning.  */
-PyObject * _pycsh_util_get_array(param_t *param, int autopull, int host, int timeout, int retries, int paramver, int verbose);
+PyObject * _pycsh_util_get_array(const param_t *param, int autopull, int host, int timeout, int retries, int paramver, int verbose);
 
 /* Similar to `_pycsh_util_get_array()`, but accepts a `PyObject * indexes`,
 	which will be iterated to map out specific indexes to retrieve/return. */
-PyObject * _pycsh_util_get_array_indexes(param_t *param, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose);
+PyObject * _pycsh_util_get_array_indexes(const param_t *param, PyObject * indexes, int autopull, int host, int timeout, int retries, int paramver, int verbose);
 
-PyObject * _pycsh_util_set_array_indexes(param_t *param, PyObject * values, PyObject * indexes, int autopush, int host, int timeout, int retries, int paramver, int verbose);
+PyObject * _pycsh_util_set_array_indexes(const param_t *param, PyObject * values, PyObject * indexes, int autopush, int host, int timeout, int retries, int paramver, int verbose);
 
 /* Private interface for setting the value of a normal parameter. 
    Use INT_MIN as no offset. */
-int _pycsh_util_set_single(param_t *param, PyObject *value, int offset, int host, int timeout, int retries, int paramver, int remote, int verbose);
+int _pycsh_util_set_single(const param_t *param, PyObject *value, int offset, int host, int timeout, int retries, int paramver, int remote, int verbose);
 
 /* Private interface for setting the value of an array parameter. */
-int _pycsh_util_set_array(param_t *param, PyObject *value, int host, int timeout, int retries, int paramver, int verbose);
+int _pycsh_util_set_array(const param_t *param, PyObject *value, int host, int timeout, int retries, int paramver, int verbose);
 
 /**
  * @brief Check if this param_t is wrapped by a ParameterObject.
  * 
  * @return borrowed reference to the wrapping ParameterObject if wrapped, otherwise NULL.
  */
-ParameterObject * Parameter_wraps_param(param_t *param);
+ParameterObject * Parameter_wraps_param(const param_t *param);
 
 /* Checks that the specified index is within bounds of the sequence index, raises IndexError if not.
    Supports Python backwards subscriptions, mutates the index to a positive value in such cases. */

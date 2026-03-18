@@ -64,7 +64,7 @@ static PyObject * ParameterList_pull(ParameterListObject *self, PyObject *args, 
 		return NULL;  // TypeError is thrown
 
 	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
-	param_queue_t queue = { };
+	param_queue_t queue = {0};
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_GET, paramver);
 
 	int seqlen = PySequence_Fast_GET_SIZE(self);
@@ -118,7 +118,7 @@ static PyObject * ParameterList_push(ParameterListObject *self, PyObject *args, 
 		return NULL;  // TypeError is thrown
 
 	uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
-	param_queue_t queue = { };
+	param_queue_t queue = {0};
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, paramver);
 
 	// Would likely segfault if 'self' is not a sequence, not that this ever seems be possible.
@@ -159,15 +159,19 @@ static PyObject * ParameterList_push(ParameterListObject *self, PyObject *args, 
 	Py_RETURN_NONE;
 }
 
+/* It seems that pedantic does not like how CPython uses flags to communicate function signature. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 static PyMethodDef ParameterList_methods[] = {
     {"append", (PyCFunction)ParameterList_append, METH_VARARGS,
      PyDoc_STR("Add a Parameter to the list.")},
-	{"pull", (PyCFunction)ParameterList_pull, METH_VARARGS | METH_KEYWORDS,
+	{"pull", (PyCFunctionWithKeywords)ParameterList_pull, METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Pulls all Parameters in the list as a single request.")},
-	{"push", (PyCFunction)ParameterList_push, METH_VARARGS | METH_KEYWORDS,
+	{"push", (PyCFunctionWithKeywords)ParameterList_push, METH_VARARGS | METH_KEYWORDS,
      PyDoc_STR("Pushes all Parameters in the list as a single request.")},
     {NULL, NULL, 0, NULL}
 };
+#pragma GCC diagnostic pop
 
 static int ParameterList_init(ParameterListObject *self, PyObject *args, PyObject *kwds) {
 

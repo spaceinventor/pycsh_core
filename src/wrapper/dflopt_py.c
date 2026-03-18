@@ -17,6 +17,7 @@
 // TODO Kevin: These differ from the newest version of slash/csh
 
 PyObject * pycsh_slash_node(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	PyObject * node = NULL;
 	int verbose = pycsh_dfl_verbose;
@@ -46,6 +47,7 @@ PyObject * pycsh_slash_node(PyObject * self, PyObject * args, PyObject * kwds) {
 }
 
 PyObject * pycsh_slash_timeout(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	int timeout = -1;
 	int verbose = pycsh_dfl_verbose;
@@ -71,6 +73,7 @@ PyObject * pycsh_slash_timeout(PyObject * self, PyObject * args, PyObject * kwds
 }
 
 PyObject * pycsh_slash_verbose(PyObject * self, PyObject * args) {
+	(void)self;
 
 	int verbose = INT_MIN;
 

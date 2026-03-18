@@ -52,6 +52,7 @@ bool csp_initialized() {
 }
 
 void * py_router_task(void * param) {
+    (void)param;
     Py_Initialize();  // We need to initialize the Python interpreter before CSP may call any PythonParameter callbacks.
     while(1) {
         csp_route_work();
@@ -66,6 +67,7 @@ void * py_vmem_server_task(void * param) {
 }
 
 PyObject * pycsh_csh_csp_init(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
     if(true == csp_router_is_running()) {
         Py_RETURN_NONE;
     }
@@ -181,6 +183,7 @@ static char * pycsh_parse_zmq_sec_key(PyObject * key_file_obj, char key_buf[41])
 
 
 PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     #if (!CSP_HAVE_LIBZMQ)
     PyErr_SetString(PyExc_ModuleNotFoundError, "`libzmq3-dev` not installed, cannot `.csp_add_zmq()`."\
@@ -254,6 +257,7 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
 }
 
 PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     static int ifidx = 0;
 
@@ -297,6 +301,7 @@ PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject *
 }
 
 PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     #if (!CSP_HAVE_LIBSOCKETCAN)
     PyErr_SetString(PyExc_ModuleNotFoundError, "`libsocketcan-dev` not installed, cannot `.csp_add_can()`."\
@@ -370,6 +375,7 @@ static void eth_select_interface(const char ** device) {
 }
 
 PyObject * pycsh_csh_csp_ifadd_eth(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     static int ifidx = 0;
     char name[CSP_IFLIST_NAME_MAX + 1];
@@ -408,6 +414,7 @@ PyObject * pycsh_csh_csp_ifadd_eth(PyObject * self, PyObject * args, PyObject * 
 }
 
 PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     static int ifidx = 0;
 
@@ -460,6 +467,7 @@ PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * 
 }
 
 PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     static int ifidx = 0;
 
@@ -496,6 +504,7 @@ PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * 
 }
 
 PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     unsigned int addr;
     unsigned int mask;
@@ -511,7 +520,7 @@ PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject
     // Suppress the incompatible pointer type warning when AUTO_DECREF is used on subclasses of PyObject*
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
-    InterfaceObject * interface AUTO_DECREF = Interface_from_py_identifier(interface_arg);
+    InterfaceObject * interface AUTO_DECREF = Interface_from_py_identifier(&InterfaceType, interface_arg);
 	// Re-enable the warning
     #pragma GCC diagnostic pop
 
@@ -536,7 +545,7 @@ PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject
         return NULL;
     }
 
-    if (mask > (int)csp_id_get_host_bits()) {
+    if (mask > csp_id_get_host_bits()) {
         csp_dbg_errno = CSP_DBG_ERR_INVALID_RTABLE_ENTRY;  // TODO Kevin: Should we really set errno here?
         PyErr_Format(PyExc_ValueError, "Mask cannot be larger than %d", (int)csp_id_get_host_bits());
         return NULL;

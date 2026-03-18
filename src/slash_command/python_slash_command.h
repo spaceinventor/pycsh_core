@@ -22,7 +22,7 @@ typedef struct {
     struct slash_command command_heap;  // The implementation of slash allows us control where to store our slash_command
     PyObject *py_slash_func;
     // TODO Kevin: We should also expose completer to be implemented by the user
-	int keep_alive: 1;  // For the sake of reference counting, keep_alive should only be changed by SlashCommand_set_keep_alive()
+	unsigned int keep_alive: 1;  // For the sake of reference counting, keep_alive should only be changed by SlashCommand_set_keep_alive()
 
     /* NOTE: This should currently only be set by the constructor. Changing during object lifetime skips desired error checks. */
     /* Whether to generate short opts for the parameters of the provided Python function.

@@ -43,7 +43,7 @@ csp_packet_t * pycsh_vmem_client_list_get(int node, int timeout, int version) {
 		resp->length = 0;
 		/* Keep receiving until we got everything or we got a timeout */
 		while ((packet = csp_read(conn, timeout)) != NULL) {
-			if (packet->data[0] & 0b01000000) {
+			if (packet->data[0] & 0x40/*0b01000000*/) {
 				/* First packet */
 				resp->length = 0;
 			}
@@ -52,7 +52,7 @@ csp_packet_t * pycsh_vmem_client_list_get(int node, int timeout, int version) {
 			memcpy(&resp->data[resp->length], &packet->data[1], (packet->length - 1));
 			resp->length += (packet->length - 1);
 
-			if (packet->data[0] & 0b10000000) {
+			if (packet->data[0] & 0x80/*0b10000000*/) {
 				/* Last packet, break the loop */
 				csp_buffer_free(packet);
 				break;

@@ -40,7 +40,7 @@ PyObject * PyExc_ProgramDiffError;
 
 static int ping(int node) {
 
-	struct csp_cmp_message message = {};
+	struct csp_cmp_message message = {0};
 	if (csp_cmp_ident(node, 3000, &message) != CSP_ERR_NONE) {
 		printf("Cannot ping system\n");
 		return -1;
@@ -94,6 +94,7 @@ static int reset_to_flash(int node, int flash, int times, int type) {
 }
 
 PyObject * slash_csp_switch(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	CSP_INIT_CHECK()
 
@@ -119,7 +120,7 @@ PyObject * slash_csp_switch(PyObject * self, PyObject * args, PyObject * kwds) {
 }
 
 static vmem_list_t vmem_list_find(int node, int timeout, char * name, int namelen) {
-	vmem_list_t ret = {};
+	vmem_list_t ret = {0};
 
 	csp_conn_t * conn = csp_connect(CSP_PRIO_HIGH, node, VMEM_PORT_SERVER, timeout, CSP_O_CRC32);
 	if (conn == NULL)
@@ -338,6 +339,7 @@ unsigned int rdp_dfl_delayed_acks __attribute__((weak));
 }
 
 static void _auto_reset_rdp(void ** stuff) {
+	(void)stuff;
 	rdp_opt_reset();
 }
 
@@ -346,6 +348,7 @@ static void _auto_reset_rdp(void ** stuff) {
 #define RDP_TYPESTR "IIIIII"
 
 PyObject * pycsh_csh_program(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	CSP_INIT_CHECK()
 
@@ -456,6 +459,7 @@ PyObject * pycsh_csh_program(PyObject * self, PyObject * args, PyObject * kwds) 
 }
 
 PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
+	(void)self;
 
 	CSP_INIT_CHECK()
 

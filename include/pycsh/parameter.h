@@ -25,7 +25,13 @@ typedef struct {
     /* Type-specific fields go here. */
 	PyTypeObject *type;  // Best Python representation of the parameter type, i.e 'int' for uint32.
 
-	param_t * param;
+	/* Whether this ParameterObject wraps a const param_t,
+		which should never be freed. */
+	unsigned int is_const : 1;  
+	union {
+		const param_t * const_param;
+		param_t * param;
+	};
 
 	int host;
 	int timeout;
@@ -51,7 +57,7 @@ extern PyMethodDef Parameter_class_methods[2];
  * @brief Shared callback for all param_t's wrapped by a Parameter instance,
  * 	that must call a PyObject* callback function.
  */
-void Parameter_callback(param_t * param, int offset);
+void Parameter_callback(const param_t * param, int offset);
 
 
 // Source: https://chat.openai.com
@@ -83,6 +89,6 @@ extern PyTypeObject ParameterType;
  * @param free_in_dealloc If true, we will free self->param in our deallocator. 
  * @return ParameterObject* The wrapping ParameterObject.
  */
-PyObject * pycsh_Parameter_from_param(PyTypeObject *type, param_t * param, const PyObject * callback, int host, int timeout, int retries, int paramver, py_param_free_e free_in_dealloc);
+PyObject * pycsh_Parameter_from_param(PyTypeObject *type, const param_t * param, const PyObject * callback, int host, int timeout, int retries, int paramver, py_param_free_e free_in_dealloc);
 
 ParameterObject * Parameter_create_new(PyTypeObject *type, uint16_t id, param_type_e param_type, uint32_t mask, char * name, char * unit, char * docstr, int array_size, const PyObject * callback, int host, int timeout, int retries, int paramver);

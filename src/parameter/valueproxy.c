@@ -155,12 +155,14 @@ static PyObject * ValueProxy_new(PyTypeObject *type, PyObject *args, PyObject *k
 
 
 static PyObject * ValueProxy_get_host(ValueProxyObject *self, void *closure) {
+    (void)closure;
     if (self->host != INT_MIN)
         return Py_BuildValue("i", self->host);
     Py_RETURN_NONE;
 }
 
 static int ValueProxy_set_host(ValueProxyObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the host attribute");
@@ -190,10 +192,12 @@ static int ValueProxy_set_host(ValueProxyObject *self, PyObject *value, void *cl
 
 
 static PyObject * ValueProxy_get_timeout(ValueProxyObject *self, void *closure) {
+    (void)closure;
     return Py_BuildValue("i", self->timeout);
 }
 
 static int ValueProxy_set_timeout(ValueProxyObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the timeout attribute");
@@ -222,10 +226,12 @@ static int ValueProxy_set_timeout(ValueProxyObject *self, PyObject *value, void 
 }
 
 static PyObject * ValueProxy_get_retries(ValueProxyObject *self, void *closure) {
+    (void)closure;
     return Py_BuildValue("i", self->retries);
 }
 
 static int ValueProxy_set_retries(ValueProxyObject *self, PyObject *value, void *closure) {
+    (void)closure;
 
     if (value == NULL) {
         PyErr_SetString(PyExc_TypeError, "Cannot delete the retries attribute");
@@ -333,7 +339,7 @@ static PyGetSetDef ValueProxy_getsetters[] = {
      "timeout of the parameter", NULL},
     {"retries", (getter)ValueProxy_get_retries, (setter)ValueProxy_set_retries,
      "available retries of the parameter", NULL},
-    {NULL, NULL, NULL, NULL}  /* Sentinel */
+    {NULL, NULL, NULL, NULL, NULL}  /* Sentinel */
 };
 
 static PyObject *ValueProxy_iter(ValueProxyObject *self) {

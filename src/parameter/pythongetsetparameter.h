@@ -10,6 +10,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <vmem/vmem.h>
 #include <param/param.h>
 
 #include <pycsh/parameter.h>

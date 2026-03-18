@@ -156,18 +156,22 @@ PyObject * Interface_new(PyTypeObject *type, PyObject *args, PyObject *kwds) {
 #endif
 
 static PyObject * Route_get_address(RouteObject *self, void *closure) {
+    (void)closure;
     return PyLong_FromUnsignedLong((unsigned long)self->route->address);
 }
 
 static PyObject * Route_get_netmask(RouteObject *self, void *closure) {
+    (void)closure;
     return PyLong_FromUnsignedLong((unsigned long)self->route->netmask);
 }
 
 static PyObject * Route_get_via(RouteObject *self, void *closure) {
+    (void)closure;
     return PyLong_FromUnsignedLong((unsigned long)self->route->via);
 }
 
 static PyObject * Route_get_iface(RouteObject *self, void *closure) {
+    (void)closure;
     assert(self->route && self->route->iface);
     return (PyObject *) Interface_from_csp_iface_t(&InterfaceType, self->route->iface);
 }

@@ -21,12 +21,14 @@
 
 
 PyObject * pycsh_csp_info(PyObject * self, PyObject * args) {
-
+    (void)self;
+    (void)args;
     return (PyObject*)_Info_new_internal();
 }
 
 
 PyObject * pycsh_slash_ping(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     CSP_INIT_CHECK()
 
@@ -63,6 +65,7 @@ PyObject * pycsh_slash_ping(PyObject * self, PyObject * args, PyObject * kwds) {
 }
 
 PyObject * pycsh_slash_ident(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     CSP_INIT_CHECK()
 
@@ -132,10 +135,12 @@ PyObject * pycsh_slash_ident(PyObject * self, PyObject * args, PyObject * kwds) 
 }
 
 PyObject * pycsh_csp_cmp_ifstat(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
     return Ifstat_new(&IfstatType, args, kwds);
 }
 
 PyObject * pycsh_csp_cmp_uptime(PyObject * self, PyObject * args, PyObject * kwds) {
+    (void)self;
 
     CSP_INIT_CHECK()
 
@@ -152,11 +157,12 @@ PyObject * pycsh_csp_cmp_uptime(PyObject * self, PyObject * args, PyObject * kwd
     csp_get_uptime(node, timeout, &uptime);
     Py_END_ALLOW_THREADS;
 
-    static_assert(sizeof(unsigned int) == sizeof(uint32_t));
+    static_assert(sizeof(unsigned int) == sizeof(uint32_t), "Parsing Python arguments, i.e int -> uint32_t");
     return Py_BuildValue("I", uptime);
 }
 
 PyObject * pycsh_slash_reboot(PyObject * self, PyObject * args) {
+    (void)self;
 
     CSP_INIT_CHECK()
 
