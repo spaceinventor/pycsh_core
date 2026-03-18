@@ -184,7 +184,7 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
 
     #if (!CSP_HAVE_LIBZMQ)
     PyErr_SetString(PyExc_ModuleNotFoundError, "`libzmq3-dev` not installed, cannot `.csp_add_zmq()`."\
-        " If you're on Debian/Ubuntu: `sudo apt install libzmq3-dev && pip3 install --force-reinstall git+https://github.com/spaceinventor/PyCSH.git`")
+        " If you're on Debian/Ubuntu: `sudo apt install libzmq3-dev && pip3 install --force-reinstall git+https://github.com/spaceinventor/PyCSH.git`");
     return NULL;
     #else
 
@@ -300,7 +300,7 @@ PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * 
 
     #if (!CSP_HAVE_LIBSOCKETCAN)
     PyErr_SetString(PyExc_ModuleNotFoundError, "`libsocketcan-dev` not installed, cannot `.csp_add_can()`."\
-        " If you're on Debian/Ubuntu: `sudo apt install libsocketcan-dev can-utils && pip3 install --force-reinstall git+https://github.com/spaceinventor/PyCSH.git`")
+        " If you're on Debian/Ubuntu: `sudo apt install libsocketcan-dev can-utils && pip3 install --force-reinstall git+https://github.com/spaceinventor/PyCSH.git`");
     return NULL;
     #else
     
