@@ -1371,6 +1371,9 @@ def csp_add_zmq(addr: int, server: str, promisc: int = 0, mask: int = 8, default
     :param pub_port: Port to publish on
     :param sub_port: Port to subscribe on
     :param sec_key: Auth key for zmqproxy
+
+    :raises ModuleNotFoundError: If `libzmq3-dev` is not installed when PyCSH is.
+        If you're on Debian/Ubuntu: `sudo apt install libzmq3-dev && pip3 install --force-reinstall git+https://github.com/spaceinventor/PyCSH.git`
     """
 
 def csp_add_kiss(addr: int, mask: int = 8, default: int = 0, baud: int = 1000000, uart: str = "ttyUSB0") -> Interface:
@@ -1384,7 +1387,7 @@ def csp_add_kiss(addr: int, mask: int = 8, default: int = 0, baud: int = 1000000
     :param baud: Baudrate
     :param uart: UART device name (defaults to ttyUSB0)
 
-    :raises SystemError: When failing to add interface
+    :raises SystemError: When failing to add interface.
     """
 
 def csp_add_can(addr: int, promisc: int = 0, mask: int = 8, default: int = 0, baud: int = 1000000, can: str = "can0") -> Interface:
@@ -1398,7 +1401,9 @@ def csp_add_can(addr: int, promisc: int = 0, mask: int = 8, default: int = 0, ba
     :param baud: Baudrate
     :param can: UART device name (defaults to ttyUSB0)
 
-    :raises SystemError: When failing to add interface
+    :raises SystemError: When failing to add interface.
+    :raises ModuleNotFoundError: If `libsocketcan-dev` is not installed when PyCSH is.
+         If you're on Debian/Ubuntu: `sudo apt install libsocketcan-dev can-utils && pip3 install --force-reinstall git+https://github.com/spaceinventor/PyCSH.git`
     """
 
 def csp_add_eth(addr: int, device: str = "e", promisc: int = 0, mask: int = 8, default: int = 0, mtu: int = 1200) -> Interface:

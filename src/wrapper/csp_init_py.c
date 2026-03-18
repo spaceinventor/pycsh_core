@@ -179,13 +179,19 @@ static char * pycsh_parse_zmq_sec_key(PyObject * key_file_obj, char key_buf[41])
     return key_buf;
 }
 
-#ifdef CSP_HAVE_LIBZMQ
+
 PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * kwds) {
+
+    #if (!CSP_HAVE_LIBZMQ)
+    PyErr_SetString(PyExc_ModuleNotFoundError, "`libzmq3-dev` not installed, cannot `.csp_add_zmq()`."\
+        " If you're on Debian/Ubuntu: `sudo apt install libzmq3-dev && pip3 install --force-reinstall git+https://github.com/spaceinventor/PyCSH.git`")
+    return NULL;
+    #else
 
     static int ifidx = 0;
 
     char name[10];
-    sprintf(name, "ZMQ%u", ifidx++);
+    sprintf(name, "ZMQ%u", ifidx);
     
     unsigned int addr;
     char * server;
@@ -238,19 +244,21 @@ PyObject * pycsh_csh_csp_ifadd_zmq(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
+    ifidx++;
+
     /* TODO Kevin: Find a closed-loop way to wait for the ZMQ connection to come online. */
     usleep(300000);
 
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
+    #endif  // CSP_HAVE_LIBZMQ
 }
-#endif
 
 PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject * kwds) {
 
     static int ifidx = 0;
 
     char name[10];
-    sprintf(name, "KISS%u", ifidx++);
+    sprintf(name, "KISS%u", ifidx);
 
     unsigned int addr;
     int mask = 8;
@@ -283,17 +291,24 @@ PyObject * pycsh_csh_csp_ifadd_kiss(PyObject * self, PyObject * args, PyObject *
     iface->addr = addr;
     iface->netmask = mask;
 
+    ifidx++;
+
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
-#if (CSP_HAVE_LIBSOCKETCAN)
-
 PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * kwds) {
+
+    #if (!CSP_HAVE_LIBSOCKETCAN)
+    PyErr_SetString(PyExc_ModuleNotFoundError, "`libsocketcan-dev` not installed, cannot `.csp_add_can()`."\
+        " If you're on Debian/Ubuntu: `sudo apt install libsocketcan-dev can-utils && pip3 install --force-reinstall git+https://github.com/spaceinventor/PyCSH.git`")
+    return NULL;
+    #else
+    
 
     static int ifidx = 0;
 
     char name[10];
-    sprintf(name, "CAN%u", ifidx++);
+    sprintf(name, "CAN%u", ifidx);
 
     unsigned int addr;
     int promisc = 0;
@@ -304,10 +319,11 @@ PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * 
 
     static char *kwlist[] = {"addr", "promisc", "mask", "default", "baud", "can", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|iiiiz:csp_add_can", kwlist, &addr, &promisc, &mask, &dfl, &baud, &device))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|iiiiz:csp_add_can", kwlist, &addr, &promisc, &mask, &dfl, &baud, &device)) {   
         return NULL;  // TypeError is thrown
+    }
 
-   csp_iface_t * iface;
+   csp_iface_t * iface = NULL;
     
     int error = csp_can_socketcan_open_and_add_interface(device, name, addr, baud, promisc, &iface);
     if (error != CSP_ERR_NONE) {
@@ -319,10 +335,10 @@ PyObject * pycsh_csh_csp_ifadd_can(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
+    ifidx++;
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
+    #endif  // CSP_HAVE_LIBSOCKETCAN
 }
-
-#endif
 
 static void eth_select_interface(const char ** device) {
 
@@ -357,7 +373,7 @@ PyObject * pycsh_csh_csp_ifadd_eth(PyObject * self, PyObject * args, PyObject * 
 
     static int ifidx = 0;
     char name[CSP_IFLIST_NAME_MAX + 1];
-    sprintf(name, "ETH%u", ifidx++);
+    sprintf(name, "ETH%u", ifidx);
     const char * device = "e";
 
     unsigned int addr;
@@ -386,6 +402,8 @@ PyObject * pycsh_csh_csp_ifadd_eth(PyObject * self, PyObject * args, PyObject * 
     iface->addr = addr;
     iface->netmask = mask;
 
+    ifidx++;
+
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
@@ -394,7 +412,7 @@ PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * 
     static int ifidx = 0;
 
     char name[10];
-    sprintf(name, "UDP%u", ifidx++);
+    sprintf(name, "UDP%u", ifidx);
 
     unsigned int addr;
     char * server;
@@ -436,6 +454,8 @@ PyObject * pycsh_csh_csp_ifadd_udp(PyObject * self, PyObject * args, PyObject * 
         return PyErr_NoMemory();
     }
 
+    ifidx++;
+
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }
 
@@ -444,7 +464,7 @@ PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * 
     static int ifidx = 0;
 
     char name[10];
-    sprintf(name, "TUN%u", ifidx++);
+    sprintf(name, "TUN%u", ifidx);
 
     unsigned int addr;
     unsigned int tun_src;
@@ -469,6 +489,8 @@ PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * 
     iface->is_default = dfl;
     iface->addr = addr;
     iface->netmask = mask;
+
+    ifidx++;
 
     return (PyObject*)Interface_from_csp_iface_t(&InterfaceType, iface);
 }

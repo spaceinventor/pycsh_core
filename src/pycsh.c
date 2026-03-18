@@ -226,14 +226,14 @@ static PyMethodDef methods[] = {
 
 	/* Wrappers for src/csp_init_cmd.c */
 	{"csp_init", 	(PyCFunction)pycsh_csh_csp_init,   METH_VARARGS | METH_KEYWORDS, "Initialize CSP"},
-#ifdef CSP_HAVE_LIBZMQ
+#if (1 || CSP_HAVE_LIBZMQ)
 	{"csp_add_zmq", (PyCFunction)pycsh_csh_csp_ifadd_zmq,   METH_VARARGS | METH_KEYWORDS, "Add a new ZMQ interface"},
 	/* TODO Kevin: Probably add some error property if we don't have ZMQ, so we can tell the user that it isn't installed.
 		Other than just giving a plain non-descript `AttributeError` */
 #endif
 	{"csp_add_kiss",(PyCFunction)pycsh_csh_csp_ifadd_kiss,   METH_VARARGS | METH_KEYWORDS, "Add a new KISS/UART interface"},
-#if (CSP_HAVE_LIBSOCKETCAN)
-	{"csp_add_can", (PyCFunction)pycsh_csh_csp_ifadd_can,   METH_VARARGS | METH_KEYWORDS, "Add a new UDP interface"},
+#if (1 || CSP_HAVE_LIBSOCKETCAN)
+	{"csp_add_can", (PyCFunction)pycsh_csh_csp_ifadd_can,   METH_VARARGS | METH_KEYWORDS, "Add a new CAN interface"},
 #endif
 	{"csp_add_eth", (PyCFunction)pycsh_csh_csp_ifadd_eth,   METH_VARARGS | METH_KEYWORDS, "Add a new ethernet interface"},
 	{"csp_add_udp", (PyCFunction)pycsh_csh_csp_ifadd_udp,   METH_VARARGS | METH_KEYWORDS, "Add a new UDP interface"},
