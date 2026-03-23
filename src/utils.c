@@ -570,51 +570,6 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 	csp_buffer_free(response);
 }
 
-typedef struct pycsh_queue_apply_context_s {
-	param_queue_apply_context_t vanilla_context;  /* Original context from libparam */
-
-	param_decode_callback_f err_callback;
-	PyObject * py_err_callback;
-
-	/* TODO Kevin: Now that the callback is called for every parameter,
-		maybe we should accept a Python callback for that too?
-		Question is whether it should be a separate Python function,
-		or the same callback with different arguments, like in C?*/
-	//PyObject * py_err_callback;
-
-	/* If this is not NULL, and a callback needs to invoke Python, it should call:
-		```
-		PyEval_RestoreThread(...->threads_suspended);
-		...->threads_suspended = NULL;  // Signal to the caller that the GIL has now been 'resumed'
-		``` */
-	PyThreadState * threads_suspended;
-} pycsh_queue_apply_context_t;
-static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, int version, pycsh_queue_apply_context_t * context) {
-
-	assert(context);
-
-	int from = response->id.src;
-	//csp_hex_dump("pull response", response->data, response->length);
-	//printf("From %d\n", from);
-
-	param_queue_t queue;
-	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
-	queue.last_node = response->id.src;
-
-	/* Even though we have been provided a `param_t * param`,
-		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
-		Although we are SOL if those unexpected parameters are not in the list.
-		TODO Kevin: Make sure ParameterList accounts for this scenario. */
-	param_queue_apply_w_callback(&queue, from, context->err_callback, context);
-
-	/* Should we always print error here, no matter `verbose`? */
-	if(verbose && !((param_queue_apply_context_t*)context)->num_unknown_params && !((param_queue_apply_context_t*)context)->num_known_params) {
-		printf("No parameters returned in response\n");
-	}
-
-	csp_buffer_free(response);
-}
-
 
 /**
  * @brief Check that the callback accepts exactly one Parameter and one integer,
@@ -628,7 +583,7 @@ static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, i
  * @param raise_exc Whether to set exception message when returning false.
  * @return true for success
  */
-bool is_valid_err_callback(const PyObject *callback, bool raise_exc) {
+static bool is_valid_err_callback(const PyObject *callback, bool raise_exc) {
 
     /*We currently allow both NULL and Py_None,
             as those are valid to have on PythonParameterObject */
@@ -792,18 +747,141 @@ bool is_valid_err_callback(const PyObject *callback, bool raise_exc) {
     return true;
 }
 
+typedef struct pycsh_queue_apply_context_s {
 
-static void pycsh_decode_err_callback(uint16_t node, uint16_t id, uint8_t debug_level, param_t * param, pycsh_queue_apply_context_t * context) {
+	PyObject * py_err_callback;
+
+	/* TODO Kevin: Now that the callback is called for every parameter,
+		maybe we should accept a Python callback for that too?
+		Question is whether it should be a separate Python function,
+		or the same callback with different arguments, like in C?*/
+	//PyObject * py_err_callback;
+
+	/* If this is not NULL, and a callback needs to invoke Python, it should call:
+		```
+		PyEval_RestoreThread(...->threads_suspended);
+		...->threads_suspended = NULL;  // Signal to the caller that the GIL has now been 'resumed'
+		``` */
+	PyThreadState * threads_suspended;
+} pycsh_queue_apply_context_t;
+typedef void (*param_decode_err_callback_f)(uint16_t node, uint16_t id, uint8_t debug_level, const param_t * param, pycsh_queue_apply_context_t * context);
+static int param_queue_apply_err_callback(param_queue_t *queue, int host, int verbose, param_decode_err_callback_f err_callback, void * err_context) {
+	int return_code = 0;
+	int atomic_write = 0;
+
+	csp_timestamp_t time_now;
+	csp_clock_get_time(&time_now);
+	queue->last_timestamp = time_now;
+
+	mpack_reader_t reader;
+	mpack_reader_init_data(&reader, queue->buffer, queue->used);
+	while(reader.data < reader.end) {
+		int id, node, offset = -1;
+		csp_timestamp_t timestamp = { .tv_sec = 0, .tv_nsec = 0 };
+		param_deserialize_id(&reader, &id, &node, &timestamp, &offset, queue);
+
+		/* For handling of responess on client side, replace localhost with host node */
+		if (node == 0)
+			node = host;
+
+		/* Search on the specified node in the request or response */
+		const param_t * param = param_list_find_id(node, id);
+
+		if (param) {
+			if ((param->mask & PM_ATOMIC_WRITE) && (atomic_write == 0)) {
+				atomic_write = 1;
+				if (param_enter_critical)
+					param_enter_critical();
+			}
+
+			if (*param->node != 0) {
+				*param->timestamp = timestamp;
+			}
+
+			param_deserialize_from_mpack_to_param(NULL, queue, param, offset, &reader);
+		} else {
+			// We couldn't find all parameters. Skip this one.
+			return_code = -1;
+
+			mpack_tag_t tag = mpack_read_tag(&reader);
+			if (mpack_reader_error(&reader) != mpack_ok) {
+				if (err_callback) {
+					err_callback(node, id, 2, param, err_context);
+				}
+				if (verbose >= 2) {
+					printf("Param decoding failed for ID %u:%u, skipping packet\n", node, id);
+				}
+				break;
+			}
+
+			// TODO: Skip content
+			bool valid = true;
+
+			switch (tag.type) {
+    		case mpack_type_str:
+    		case mpack_type_bin:
+    			if (reader.end - reader.data >= tag.v.l) {
+	    			mpack_skip_bytes(&reader, tag.v.l);
+	    		} else {
+    				valid = false;
+	    			break;
+	    		}
+
+	    		if (tag.type == mpack_type_str) {
+	    			mpack_done_str(&reader);
+	    		} else if (tag.type == mpack_type_bin) {
+	    			mpack_done_bin(&reader);
+	    		}
+    			break;
+    		case mpack_type_array:
+    			for (uint32_t i = 0; i < tag.v.n; i++) {
+					mpack_read_tag(&reader);
+					if (mpack_reader_error(&reader) != mpack_ok) {
+						valid = false;
+						break;
+					}
+    			}
+    			if (valid) {
+	    			mpack_done_array(&reader);
+    			}
+    			break;
+    		case mpack_type_map:
+    			break;
+    		default:
+    			break;
+			}
+
+			if (err_callback) {
+				err_callback(node, id, 3, param, err_context);
+			}
+			if (verbose >= 3) {
+				printf("Param ID %u:%u not found locally, skipping value\n", node, id);
+			}
+		}
+	}
+
+	if (atomic_write) {
+		if (param_exit_critical)
+			param_exit_critical();
+	}
+
+	return return_code;
+}
+
+static void pycsh_decode_err_callback(uint16_t node, uint16_t id, uint8_t debug_level, const param_t * param, pycsh_queue_apply_context_t * context) {
+	(void)debug_level;
 
 	if (!context) {
 		return;
 	}
+#if 0  /* Original callback has been removed, so there's nothing to call here. */
 	/* Call the original callback, to get error and normal prints. */
 	param_queue_apply_callback(node, id, debug_level, param, &context->vanilla_context);
+#endif
 
 	if (param) {
 		/* This parameter was successfully decoded,
-			but this callback is only for errors... for now. */
+			This callback is only for errors... for now. */
 		return;
 	}
 
@@ -813,7 +891,7 @@ static void pycsh_decode_err_callback(uint16_t node, uint16_t id, uint8_t debug_
 
 	if (context->threads_suspended) {
 		/* We make an attempt to use the macros here,
-			in case the functions the use change in the future. */
+			in case the functions they use change in the future. */
 		PyThreadState * _save = context->threads_suspended;
 		Py_BLOCK_THREADS;
 		context->threads_suspended = NULL;
@@ -831,6 +909,27 @@ static void pycsh_decode_err_callback(uint16_t node, uint16_t id, uint8_t debug_
 		We will continue to call the callback for other parameters anyway,
 		so we could end up stacking many exceptions. */
 	//PyErr_Print();
+}
+
+static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, int version, pycsh_queue_apply_context_t * context) {
+
+	assert(context);
+
+	int from = response->id.src;
+	//csp_hex_dump("pull response", response->data, response->length);
+	//printf("From %d\n", from);
+
+	param_queue_t queue;
+	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
+	queue.last_node = response->id.src;
+
+	/* Even though we have been provided a `param_t * param`,
+		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
+		Although we are SOL if those unexpected parameters are not in the list.
+		TODO Kevin: Make sure ParameterList accounts for this scenario. */
+	param_queue_apply_err_callback(&queue, from, verbose, pycsh_decode_err_callback, context);
+
+	csp_buffer_free(response);
 }
 
 
@@ -852,11 +951,6 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
 	PyThreadState * Py_UNBLOCK_THREADS;
 	
 	pycsh_queue_apply_context_t context = {
-		.vanilla_context = {
-			.verbose = verbose,
-			.debug_print_level = param_queue_dbg_level,
-		},
-		.err_callback = (param_decode_callback_f)pycsh_decode_err_callback,
 		.py_err_callback = py_err_callback,
 
 		.threads_suspended = _save,  /* Created when expanding `Py_BEGIN_ALLOW_THREADS` or `Py_UNBLOCK_THREADS` */
