@@ -231,8 +231,6 @@ static PyMethodDef methods[] = {
 	{"csp_init", 	(PyCFunctionWithKeywords)pycsh_csh_csp_init,   METH_VARARGS | METH_KEYWORDS, "Initialize CSP"},
 #if (1 || CSP_HAVE_LIBZMQ)
 	{"csp_add_zmq", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_zmq,   METH_VARARGS | METH_KEYWORDS, "Add a new ZMQ interface"},
-	/* TODO Kevin: Probably add some error property if we don't have ZMQ, so we can tell the user that it isn't installed.
-		Other than just giving a plain non-descript `AttributeError` */
 #endif
 	{"csp_add_kiss",(PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_kiss,   METH_VARARGS | METH_KEYWORDS, "Add a new KISS/UART interface"},
 #if (1 || CSP_HAVE_LIBSOCKETCAN)
