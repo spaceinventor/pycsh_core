@@ -38,6 +38,21 @@ PyObject * pycsh_slash_node(PyObject * self, PyObject * args, PyObject * kwds) {
 		if (verbose >= 1) {
 			printf("Set default node to %d\n", pycsh_dfl_node);
 		}
+
+	} else if (PyUnicode_Check(node)) {
+
+		unsigned int node_int = -1;
+		const char * hostname_str = (char*)PyUnicode_AsUTF8(node);
+		if (0 >= get_host_by_addr_or_name(&node_int, hostname_str)) {
+			PyErr_Format(PyExc_LookupError, "'%s' does not resolve to a valid CSP address", hostname_str);
+			return NULL;
+		}
+
+		pycsh_dfl_node = node_int;
+		if (verbose >= 1) {
+			printf("Set default node to %d\n", pycsh_dfl_node);
+		}
+
 	} else {
 		PyErr_SetString(PyExc_TypeError, "'node' argument must be an int");
 		return NULL;
