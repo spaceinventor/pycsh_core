@@ -38,7 +38,7 @@ pycsh_sources = [
 
 	# Utilities
 	'src/utils.c',
-	vcs_tag(input: files('src/version.c.in'), output: 'version.c', command: ['git', 'describe', '--long', '--always', '--dirty=+'])
+	vcs_tag(input: files('src/version.c.in'), output: 'version.c', command: ['git', 'describe', '--long', '--always', '--dirty=+']),
 ]
 
 if slash_dep.found()
@@ -91,8 +91,28 @@ py = import('python').find_installation('python'+get_option('python3_version'), 
 python_ldflags = run_command('python'+py.language_version()+'-config', '--ldflags', '--embed', check: true).stdout().strip().split()
 pycsh_ext = py.extension_module(
 	'pycsh',
-	pycsh_sources,
-	dependencies : pycsh_deps,
+	pycsh_sources + [
+		# CSH sources
+
+		'src/csh/python_host.c',
+		'src/csh/known_hosts.c',
+		'src/csh/csh_defaults.c',
+
+		# HK symbol dependencies
+		# We did remove these from PyCSH at one point,
+		#	but now they're needed again.
+		'src/csh/vts.c',
+		'src/csh/param_sniffer.c',
+		'src/csh/hk_param_sniffer.c',
+		'src/csh/victoria_metrics.c',
+
+		'src/csh/param_slash.c',
+		'src/csh/slash_utils.c',
+		'src/csh/param_list_slash.c',
+	],
+	dependencies : pycsh_deps + [
+		dependency('libcurl', not_found_message: 'libcurl not found! Please install libcurl4-openssl-dev or the appropriate package for your system.'),
+	],
 	include_directories: [include_dir],
 	link_args : python_ldflags + ['-Wl,-Map=' + meson.project_name() + '.map'],
 	install : get_option('install'),
