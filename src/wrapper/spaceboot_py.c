@@ -49,36 +49,59 @@ static int ping(int node) {
 	return 0;
 }
 
-static int reset_to_flash(int node, int flash, int times, int type) {
+static int reset_to_flash(int node, int flash, int times, int ms, int verbose) {
 
-	param_t * boot_img[4];
+#define NUM_SLOTS 4
+
+	param_t * boot_img[NUM_SLOTS];
+	bool boot_img_exist[NUM_SLOTS];
+	int param_id[NUM_SLOTS] = {21, 20, 22, 23};
+	char param_name[NUM_SLOTS][10];
 	/* Setup remote parameters */
-	boot_img[0] = param_list_create_remote(21, node, PARAM_TYPE_UINT8, PM_CONF, 0, "boot_img0", NULL, NULL, -1);
-	boot_img[1] = param_list_create_remote(20, node, PARAM_TYPE_UINT8, PM_CONF, 0, "boot_img1", NULL, NULL, -1);
-	boot_img[2] = param_list_create_remote(22, node, PARAM_TYPE_UINT8, PM_CONF, 0, "boot_img2", NULL, NULL, -1);
-	boot_img[3] = param_list_create_remote(23, node, PARAM_TYPE_UINT8, PM_CONF, 0, "boot_img3", NULL, NULL, -1);
+	for (int i = 0; i < NUM_SLOTS; i++) {
+		boot_img[i] = param_list_find_id(node, param_id[i]);
+		if (boot_img[i]) {
+			boot_img_exist[i] = 1;
+		} else {
+			snprintf(param_name[i], sizeof(param_name[i]), "boot_img%u", i);
+			boot_img[i] = param_list_create_remote(param_id[i], node, PARAM_TYPE_UINT8, PM_CONF, 0, param_name[i], NULL, NULL, -1);
+			boot_img_exist[i] = param_list_add(boot_img[i]);
+		}
+	}
 
-	printf("  Switching to flash %d\n", flash);
-	printf("  Will run this image %d times\n", times);
+	if (flash < 0 || flash >= NUM_SLOTS) {
+		if (verbose > 0) {
+			fprintf(stderr, "  Invalid slot number %d\n", flash);
+		}
+		return -1;
+	}
+
+	if (verbose > 1) {
+		printf("  Switching to flash %d\n", flash);
+		printf("  Will run this image %d times\n", times);
+	}
 
 	char queue_buf[50];
 	param_queue_t queue;
 	param_queue_init(&queue, queue_buf, 50, 0, PARAM_QUEUE_TYPE_SET, 2);
 
 	uint8_t zero = 0;
-	param_queue_add(&queue, boot_img[0], 0, &zero);
-	param_queue_add(&queue, boot_img[1], 0, &zero);
-	if (type == 1) {
-		param_queue_add(&queue, boot_img[2], 0, &zero);
-		param_queue_add(&queue, boot_img[3], 0, &zero);
+	for (int i = 0; i < NUM_SLOTS; i++) {
+		param_queue_add(&queue, boot_img[i], 0, &zero);
 	}
 	param_queue_add(&queue, boot_img[flash], 0, &times);
-	param_push_queue(&queue, 1, 0, node, 1000, 0, false);
+	if (param_push_queue(&queue, CSP_PRIO_NORM, 1, node, 1000, 0, false) < 0) {
+		/* TODO: Ideally we would error here.
+			But modules with only 2 slots will not reply when they see we try to set `boot_img2` and `boot_img3`,
+			even though they successfully set `boot_img0` and `boot_img1`.
+			Perhaps we should modify `ack_with_pull` such that it returns every parameter that was successfully set,
+			that way the client can compare to see which parameters were missed. */
+		//return -2;
+	}
 
 	printf("  Rebooting");
 	csp_reboot(node);
 	int step = 25;
-	int ms = 1000;
 	while (ms > 0) {
 		printf(".");
 		fflush(stdout);
@@ -87,10 +110,13 @@ static int reset_to_flash(int node, int flash, int times, int type) {
 	}
 	printf("\n");
 
-	for (int i = 0; i < 4; i++)
-		param_list_destroy(boot_img[i]);
+	for (int i = 0; i < NUM_SLOTS; i++) {
+		if (!boot_img_exist[i]) param_list_remove_specific(boot_img[i], false, true);
+	}
 
-	return ping(node);
+	ping(node);
+
+	return 0;
 }
 
 PyObject * slash_csp_switch(PyObject * self, PyObject * args, PyObject * kwds) {
@@ -100,17 +126,15 @@ PyObject * slash_csp_switch(PyObject * self, PyObject * args, PyObject * kwds) {
     unsigned int slot;
 	unsigned int node = pycsh_dfl_node;
 	unsigned int times = 1;
+	unsigned int reboot_delay = 1000;
+	int verbose = pycsh_dfl_verbose;
 
-    static char *kwlist[] = {"slot", "node", "times", NULL};
+    static char *kwlist[] = {"slot", "node", "times", "reboot_delay", "verbose", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|II:switch", kwlist, &slot, &node, &times))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "I|IIIi:switch", kwlist, &slot, &node, &times, &reboot_delay, &verbose))
 		return NULL;  // TypeError is thrown
 
-	int type = 0;
-	if (slot >= 2)
-		type = 1;
-
-	if (reset_to_flash(node, slot, times, type) != 0) {
+	if (reset_to_flash(node, slot, times, reboot_delay, verbose) != 0) {
         PyErr_SetString(PyExc_ConnectionError, "Cannot ping system");
         return NULL;
     }
@@ -463,6 +487,8 @@ PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
     unsigned int to;
     char * filename = NULL;
 	unsigned int node = pycsh_dfl_node;
+	unsigned int reboot_delay = 1000;
+	int verbose = pycsh_dfl_verbose;
 
 	/* RDPOPT - Keyword-only */
 	rdp_tmp_window = rdp_dfl_window;
@@ -472,22 +498,20 @@ PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
 	rdp_tmp_ack_timeout = rdp_dfl_ack_timeout;
 	rdp_tmp_ack_count = rdp_dfl_ack_count;
 
-    static char *kwlist[] = {"from_", "to", "filename", "node", RDP_KWARGS, NULL};
+    static char *kwlist[] = {"from_", "to", "filename", "node", "reboot_delay", "verbose", RDP_KWARGS, NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIs|I$"RDP_TYPESTR":sps", kwlist, &from, &to, &filename, &node, RDP_OPTS))
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "IIs|IIi$"RDP_TYPESTR":sps", kwlist, &from, &to, &filename, &node, &reboot_delay, &verbose, RDP_OPTS)) {	
 		return NULL;  // TypeError is thrown
+	}
 
 	/* Temporarily set RDP options */
 	rdp_opt_set();
 	void * rdp_cleanup __attribute__((cleanup(_auto_reset_rdp))) = NULL;
 
-	int type = 0;
-	if (from >= 2)
-		type = 1;
-	if (to >= 2)
-		type = 1;
-
-	reset_to_flash(node, from, 1, type);
+	if (reset_to_flash(node, from, 1, reboot_delay, verbose) != 0) {
+        PyErr_SetString(PyExc_ConnectionError, "Cannot ping system");
+        return NULL;
+    }
 
 	char vmem_name[5];
 	snprintf(vmem_name, 5, "fl%u", to);
@@ -539,7 +563,7 @@ PyObject * slash_sps(PyObject * self, PyObject * args, PyObject * kwds) {
         return NULL;
 	}
 
-    if (reset_to_flash(node, to, 1, type)) {
+    if (reset_to_flash(node, to, 1, reboot_delay, verbose)) {
         PyErr_SetString(PyExc_ConnectionError, "Cannot ping system");
         return NULL;
     }
