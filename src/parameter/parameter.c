@@ -15,6 +15,7 @@
 #include "structmember.h"
 
 #include <param/param.h>
+#include <param/param_server.h>
 
 #include <pycsh/pycsh.h>
 #include <pycsh/utils.h>
@@ -1061,11 +1062,38 @@ static PyObject * Parameter_list_forget(ParameterObject *self, PyObject *args, P
 
 	Py_RETURN_NONE;
 }
+
+/* It seems that pedantic does not like how CPython uses flags to communicate function signature. */
+static PyObject * Parameter_to_bytes(ParameterObject *self, PyObject *args, PyObject *kwds) {
+	static char * kwlist[] = {"value", NULL};
+    PyObject * value;
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O", kwlist, &value)) {
+		return NULL;  // TypeError is thrown
+	}
+
+    uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
+	param_queue_t queue = { };
+	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, 2);
+    char temp[queue.buffer_size];
+    if(0 == pycsh_param_pyval_to_cval(((ParameterObject *)self)->param->type, value, temp, ((ParameterObject *)self)->param->array_size)) {
+        if (param_queue_add(&queue, ((ParameterObject *)self)->param, -1, temp) < 0) {
+            PyErr_SetString(PyExc_MemoryError, "Queue full");
+            return NULL;
+        }
+        PyObject *py_queue = Py_BuildValue("y#", queue.buffer, (size_t)queue.used);
+        return py_queue;
+    }
+    return NULL;
+}
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
 static PyMethodDef Parameter_methods[] = {
     {"list_add", (PyCFunction)Parameter_list_add, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Add `self` the global parameter list. Exposes it to other CSP nodes on the network, "\
 		"And allows it to be found in `pycsh.list()`")},
     {"list_forget", (PyCFunction)Parameter_list_forget, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Remove this parameter from the global parameter list. Hiding it from other CSP nodes on the network. "\
 		"Also removes it from `pycsh.list()`")},
+    {"to_bytes", (PyCFunction)Parameter_to_bytes, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Return the raw network representation of the parameter, suitable for use in a command queue.")},
     {NULL, NULL, 0, NULL}
 };
 

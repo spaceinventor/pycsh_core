@@ -65,16 +65,7 @@ static PyObject *_pycsh_val_to_pyobject(param_type_e type, const void * value) {
 	return NULL;
 }
 
-/**
- * @brief Convert an arbritrary value to a parameter value, based on parameter type.
- *
- * @param type Parameter type, to determine desired output value type from.
- * @param value_in PyObject* value to parse.
- * @param dataout Buffer for retrieved value.
- * @param array_len Needed for array parameters
- * @return int 0 for success.
- */
-static int _pycsh_param_pyval_to_cval(param_type_e type, PyObject * value_in, void * dataout, size_t array_len) {
+int pycsh_param_pyval_to_cval(param_type_e type, PyObject * value_in, void * dataout, size_t array_len) {
 
     if (value_in == NULL) {
         return -6;
@@ -216,7 +207,7 @@ void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len
     /* Call the user Python getter */
     PyObject *value AUTO_DECREF = PyObject_CallObject(python_getter, args);
 
-    _pycsh_param_pyval_to_cval(param->type, value, dataout, param->array_size-offset);
+    pycsh_param_pyval_to_cval(param->type, value, dataout, param->array_size-offset);
 
 #if PYCSH_HAVE_APM  // TODO Kevin: This is pretty ugly, but we can't let the error propagate when building for APM, as there is no one but us to catch it.
     if (PyErr_Occurred()) {
