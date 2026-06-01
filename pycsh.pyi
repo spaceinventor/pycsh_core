@@ -630,6 +630,19 @@ class Parameter:
         i.e: `Parameter(...)[...] = ...` == `Parameter(...).value[...] = ...`
         """
 
+    def to_bytes(self, value: int | float | str) -> bytes:
+        """
+        Convert a value of the parameter to bytes, according to the parameter's type.
+        This method uses the param serialization protocol (based on msgpack). 
+
+        :param value: Value to be serialized.
+
+        :raises MemoryError: When the parameter is too big to be serialized.
+        :raises TypeError: When the provided value is of an invalid type for the parameter.
+
+        :returns: The provided value converted to bytes, according to the parameter's type.
+        """
+
 
 class PythonGetSetParameter(Parameter):
     """ ParameterArray created in Python. """
