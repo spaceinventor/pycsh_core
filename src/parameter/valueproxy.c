@@ -483,7 +483,10 @@ VP_INPLACE_OP(or,           PyNumber_InPlaceOr)
 VP_INPLACE_OP(floor_divide, PyNumber_InPlaceFloorDivide)
 VP_INPLACE_OP(true_divide,  PyNumber_InPlaceTrueDivide)
 
-
+static int ValueProxy_eval_bool(PyObject * self) {
+    PyObject * value AUTO_DECREF = ValueProxy_eval_value((ValueProxyObject*)self, NULL);
+    return PyObject_IsTrue(value);
+}
 
 static PyNumberMethods ValueProxy_as_number = {
 
@@ -525,6 +528,8 @@ static PyNumberMethods ValueProxy_as_number = {
     .nb_inplace_or           = ValueProxy_ior,
     .nb_inplace_floor_divide = ValueProxy_ifloor_divide,
     .nb_inplace_true_divide  = ValueProxy_itrue_divide,
+
+    .nb_bool = ValueProxy_eval_bool,  /* `__bool__` should be based on the value, not the proxy itself. */
 };
 
 /**
