@@ -398,14 +398,20 @@ class Parameter:
     Provides an interface to their attributes and values.
     """
 
-    name: str  # The name of the wrapped param_t C struct
-    unit: str  # The unit of the wrapped param_t c struct as a string or None
-    docstr: str  # The help-text of the wrapped param_t c struct as a string or None
-    id: int  # ID of the parameter
-    type: _param_type_hint  # best Python representation type object of the param_t c struct type. i.e int for uint32
-    mask: int  # mask of the parameter
-    timestamp: int  # timestamp of the parameter
-    node: int  # node of the parameter
+    name: str
+    "The name of the wrapped param_t C struct"
+    unit: str
+    "The unit of the wrapped param_t c struct as a string or None"
+    docstr: str
+    "The help-text of the wrapped param_t c struct as a string or None"
+    id: int  #
+    "ID of the parameter"
+    mask: int
+    "Mask of the parameter"
+    timestamp: int
+    "Timestamp of the parameter"
+    node: int
+    "Node of the parameter"
 
     @property
     def value(self) -> ValueProxy:
