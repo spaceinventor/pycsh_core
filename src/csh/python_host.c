@@ -54,7 +54,7 @@ __attribute__((constructor)) void _pycsh_init_slash(void) {
 }
 #endif
 
-
-__attribute__((constructor)) void _pycsh_init_vmem(void) {
-    csp_cmp_set_memcpy((csp_memcpy_fnc_t) vmem_memcpy);
+int csp_cmp_memcpy(csp_memptr_t to, csp_const_memptr_t from, size_t size) {
+	vmem_memcpy(to, from, size);
+	return CSP_ERR_NONE;
 }

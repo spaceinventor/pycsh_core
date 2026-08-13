@@ -127,7 +127,7 @@ int param_slash_parse_slice(char * token, int *start_index, int *end_index, int 
 	return 0;
 }
 
-static int param_parse_from_str(int node, char * arg, param_t **param) {
+static int param_parse_from_str(int node, char * arg, const param_t **param) {
 	char *endptr;
 	int id = strtoul(arg, &endptr, 10);
 	// If strtoul has an error, then it will return ULONG_MAX, so we check on that.
@@ -302,7 +302,7 @@ static int param_offsets_parse_from_str(char * arg, int array_size, int *offset_
 	return 0;
 }
 
-static int parse_param_offset_string(char * arg_in,  int node, param_t **param, char ** arg_out) {
+static int parse_param_offset_string(char * arg_in,  int node, const param_t **param, char ** arg_out) {
 	if (param_get_offset_string(arg_in, arg_out) < 0) {
 		fprintf(stderr, "Error when parsing offset string.\n");
 		return -1;
@@ -333,7 +333,7 @@ static int hasDuplicates(int arr[], int size) {
 }
 
 
-static void param_slash_parse(char * arg, int node, param_t **param, int *offset) {
+static void param_slash_parse(char * arg, int node, const param_t **param, int *offset) {
 
 	/* Search for the '@' symbol:
 	* Call strtok twice in order to skip the stuff head of '@' */
@@ -364,7 +364,7 @@ void param_completer(struct slash *slash, char * token) {
 
 	int matches = 0;
 	size_t prefixlen = -1;
-	param_t *prefix = NULL;
+	const param_t *prefix = NULL;
 	char * orig_slash_buf = NULL;
 
 	unsigned int node = slash_dfl_node;
@@ -408,8 +408,8 @@ void param_completer(struct slash *slash, char * token) {
 
 	size_t tokenlen = strlen(token);
 
-	param_t * param;
-	param_list_iterator i = { };
+	const param_t * param;
+	param_list_iterator i = {0};
 	bool found_completion = false;
 	if (has_wildcard(token, strlen(token))) {
 		// Only print parameters when globbing is involved.
@@ -507,7 +507,7 @@ static int cmd_get(struct slash *slash) {
 
 	char * name = slash->argv[argi];
 	int offset = -1;
-	param_t * param = NULL;
+	const param_t * param = NULL;
 
 	if (++argi != slash->argc) {
 		optparse_del(parser);
@@ -522,7 +522,7 @@ static int cmd_get(struct slash *slash) {
     }
 
 	/* Go through the list of parameters */
-	param_list_iterator i = {};
+	param_list_iterator i = {0};
 	while ((param = param_list_iterate(&i)) != NULL) {
 
 		/* Name match (with wildcard) */
@@ -535,7 +535,7 @@ static int cmd_get(struct slash *slash) {
 			continue;
 		}
 
-		if ((param->mask & mask) == 0) {
+		if (mask != 0xFFFFFFFF && (param->mask & mask) == 0) {
 			continue;
 		}
 
@@ -566,7 +566,7 @@ static void param_get_cmd_completer(struct slash *slash, char * token) {
 	param_completer(slash, token);
 }
 
-slash_command_completer(get, cmd_get, param_get_cmd_completer, "<param>", "Get");
+slash_command_completer(get, cmd_get, param_get_cmd_completer, "<param>", "Get")
 
 static int cmd_set(struct slash *slash) {
 	unsigned int node = slash_dfl_node;
@@ -600,7 +600,7 @@ static int cmd_set(struct slash *slash) {
 
 	char * name = slash->argv[argi];
 
-	param_t * param = NULL;
+	const param_t * param = NULL;
 
 	// offset array, amount of possible offsets should be equal to param->array_size.
 	// Default set to INT_MIN to determine if they've been set or not, since an offset can be < 0.
@@ -711,15 +711,15 @@ static int cmd_set(struct slash *slash) {
 
 	// Create a queue, so that we can set the param in a single packet.
 	param_queue_t queue;
-	char queue_buf[PARAM_SERVER_MTU];
-	param_queue_init(&queue, queue_buf, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, 2);
+	char set_queue_buf[PARAM_SERVER_MTU];
+	param_queue_init(&queue, set_queue_buf, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, 2);
 
 	// We should iterate until we find an ending bracket ']'. Therefore we use the 'should_break' flag.
 	int should_break = 1;
 	int iterations = 0;
 	int single_value_flag = 0;
 	for (int i = argi; should_break == 1; i++) {
-		char valuebuf[128] __attribute__((aligned(16))) = { };
+		char valuebuf[128] __attribute__((aligned(16))) = {0};
 
 		char *arg = slash->argv[i];
 		if (!arg) {
@@ -809,7 +809,7 @@ static int cmd_set(struct slash *slash) {
 
 	/* Local parameters are set directly */
 	if (*param->node == 0) {
-		param_queue_apply(&queue, 0);
+		param_queue_apply(&queue, 0, 3);
 
 		// if (offset < 0 && param->type != PARAM_TYPE_STRING && param->type != PARAM_TYPE_DATA) {
 		// 	for (int i = 0; i < param->array_size; i++)
@@ -842,7 +842,7 @@ static int cmd_set(struct slash *slash) {
 static void param_set_cmd_completer(struct slash *slash, char * token) {
 	param_completer(slash, token);
 }
-slash_command_completer(set, cmd_set, param_set_cmd_completer, "<param> <value>", "Set");
+slash_command_completer(set, cmd_set, param_set_cmd_completer, "<param> <value>", "Set")
 
 
 static int cmd_add(struct slash *slash) {
@@ -884,7 +884,7 @@ static int cmd_add(struct slash *slash) {
 
 		char * name = slash->argv[argi];
 		int offset = -1;
-		param_t * param = NULL;
+		const param_t * param = NULL;
 		param_slash_parse(name, node, &param, &offset);
 
 		if (param == NULL) {
@@ -906,7 +906,7 @@ static int cmd_add(struct slash *slash) {
 			return SLASH_EINVAL;
 		}
 
-		char valuebuf[128] __attribute__((aligned(16))) = { };
+		char valuebuf[128] __attribute__((aligned(16))) = {0};
 		if (param_str_to_value(param->type, slash->argv[argi], valuebuf) < 0) {
 			printf("invalid parameter value\n");
 			optparse_del(parser);
@@ -924,10 +924,10 @@ static int cmd_add(struct slash *slash) {
 
 		char * name = slash->argv[argi];
 		int offset = -1;
-		param_t * param = NULL;
+		const param_t * param = NULL;
 
 		/* Go through the list of parameters */
-		param_list_iterator i = {};
+		param_list_iterator i = {0};
 		while ((param = param_list_iterate(&i)) != NULL) {
 
 			/* Name match (with wildcard) */
@@ -944,7 +944,7 @@ static int cmd_add(struct slash *slash) {
 				continue;
 			}
 
-			if ((param->mask & include_mask) == 0) {
+			if (include_mask != 0xFFFFFFFF && (param->mask & include_mask) == 0) {
 				continue;
 			}
 
@@ -964,7 +964,7 @@ static int cmd_add(struct slash *slash) {
 static void param_cmd_add_cmd_completer(struct slash *slash, char * token) {
 	param_completer(slash, token);
 }
-slash_command_sub_completer(cmd, add, cmd_add, param_cmd_add_cmd_completer, "<param>[offset] [value]", "Add a new parameter to a command");
+slash_command_sub_completer(cmd, add, cmd_add, param_cmd_add_cmd_completer, "<param>[offset] [value]", "Add a new parameter to a command")
 
 
 static int cmd_run(struct slash *slash) {
@@ -1014,7 +1014,7 @@ static int cmd_run(struct slash *slash) {
 	optparse_del(parser);
 	return SLASH_SUCCESS;
 }
-slash_command_sub(cmd, run, cmd_run, "", NULL);
+slash_command_sub(cmd, run, cmd_run, "", NULL)
 
 const struct slash_command slash_cmd_pull;
 static int cmd_pull(struct slash *slash) {
@@ -1098,7 +1098,7 @@ static int cmd_pull(struct slash *slash) {
 	optparse_del(parser);
 	return result;
 }
-slash_command(pull, cmd_pull, "", "Pull all metrics from given CSP node(s)");
+slash_command(pull, cmd_pull, "", "Pull all metrics from given CSP node(s)")
 
 static int cmd_new(struct slash *slash) {
 
@@ -1142,27 +1142,24 @@ static int cmd_new(struct slash *slash) {
 	name = slash->argv[argi];
 	strncpy(param_queue.name, name, sizeof(param_queue.name)-1);  // -1 to fit NULL byte
 
-	csp_timestamp_t time_now;
-	csp_clock_get_time(&time_now);
 	param_queue.used = 0;
 	param_queue.version = paramver;
 	param_queue.last_timestamp.tv_sec = 0;
 	param_queue.last_timestamp.tv_nsec = 0;
-	param_queue.client_timestamp = time_now;
 
 	printf("Initialized new command: %s\n", name);
 
 	optparse_del(parser);
 	return SLASH_SUCCESS;
 }
-slash_command_sub(cmd, new, cmd_new, "<get/set> <cmd name>", "Create a new command");
+slash_command_sub(cmd, new, cmd_new, "<get/set> <cmd name>", "Create a new command")
 
 
 static int cmd_done(struct slash *slash) {
 	param_queue.type = PARAM_QUEUE_TYPE_EMPTY;
 	return SLASH_SUCCESS;
 }
-slash_command_sub(cmd, done, cmd_done, "", "Exit cmd edit mode");
+slash_command_sub(cmd, done, cmd_done, "", "Exit cmd edit mode")
 
 
 static int cmd_print(struct slash *slash) {
@@ -1174,4 +1171,4 @@ static int cmd_print(struct slash *slash) {
 	}
 	return SLASH_SUCCESS;
 }
-slash_command(cmd, cmd_print, NULL, "Show current command");
+slash_command(cmd, cmd_print, NULL, "Show current command")
