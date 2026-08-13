@@ -24,7 +24,7 @@ struct host_s {
 };
 
 static uint32_t known_host_storage_size = sizeof(host_t);
-SLIST_HEAD(known_host_s, host_s) known_hosts = {};
+SLIST_HEAD(known_host_s, host_s) known_hosts = {0};
 
 /** Private (CSH-only API) */
 void node_save(const char * filename) {
@@ -56,13 +56,13 @@ void known_host_set_storage_size(uint32_t new_size){
     known_host_storage_size = new_size;
 }
 
-uint32_t known_host_get_storage_size() {
+uint32_t known_host_get_storage_size(void) {
     return known_host_storage_size;
 }
 
 
 void host_name_completer(struct slash *slash, char * token) {
-    SLIST_HEAD(known_host_s, host_s) matching_hosts = {};
+    SLIST_HEAD(known_host_s, host_s) matching_hosts = {0};
     char *part_to_complete = token + strnlen(token, slash->length);
     /* Rewind to a potential whitespace */
     while(part_to_complete > token) {
@@ -138,7 +138,7 @@ void host_name_completer(struct slash *slash, char * token) {
 
 }
 
-void known_hosts_del(int host) {
+static void known_hosts_del(int host) {
 
     // SLIST_FOREACH(host_t host, &known_hosts, next) {
     for (host_t* element = SLIST_FIRST(&known_hosts); element != NULL; element = SLIST_NEXT(element, next)) {
@@ -175,6 +175,7 @@ host_t * known_hosts_add(int addr, const char * new_name, bool override_existing
     strncpy(host->name, new_name, HOSTNAME_MAXLEN-1);  // -1 to fit NULL byte
     char address_str[64];
     snprintf(address_str, sizeof(address_str) - 1, "%d", host->node);
+    csh_putvar(host->name, address_str);
     SLIST_INSERT_HEAD(&known_hosts, host, next);
 
     return host;
@@ -211,7 +212,14 @@ int known_hosts_get_node(const char * find_name) {
 
 
 int get_host_by_addr_or_name(void *res_ptr, const char *arg) {
-    long node = (long)known_hosts_get_node(arg);	
+    char *number_start = (char *)arg;
+    char *end = NULL;
+    long node = strtol(number_start, &end, 10);
+    if (node != INT32_MAX && node < 16384 && *end == '\0') {  
+        *(int*)res_ptr = (int)node;
+        return 2;  /* Found number */
+    }
+    node = (long)known_hosts_get_node(arg);	
     
     /* Found node */
     if (0 <= node) {
@@ -219,13 +227,6 @@ int get_host_by_addr_or_name(void *res_ptr, const char *arg) {
         return 1;  /* Found hostname */
     }
 
-    char *number_start = (char *)arg;
-    char *end = NULL;
-    node = strtol(number_start, &end, 10);
-    if (node != INT32_MAX && node < 16384 && *end == '\0') {  
-        *(int*)res_ptr = (int)node;
-        return 2;  /* Found number */
-    }
 
 	return 0;  /* Failed */
 }

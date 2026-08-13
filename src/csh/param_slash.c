@@ -1155,14 +1155,14 @@ static int cmd_new(struct slash *slash) {
 slash_command_sub(cmd, new, cmd_new, "<get/set> <cmd name>", "Create a new command")
 
 
-static int cmd_done(struct slash *slash) {
+static int cmd_done(__attribute__((unused)) struct slash *slash) {
 	param_queue.type = PARAM_QUEUE_TYPE_EMPTY;
 	return SLASH_SUCCESS;
 }
 slash_command_sub(cmd, done, cmd_done, "", "Exit cmd edit mode")
 
 
-static int cmd_print(struct slash *slash) {
+static int cmd_print(__attribute__((unused)) struct slash *slash) {
 	if (param_queue.type == PARAM_QUEUE_TYPE_EMPTY) {
 		printf("No active command\n");
 	} else {

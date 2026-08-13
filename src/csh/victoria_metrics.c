@@ -20,6 +20,10 @@
 #include <param/param_queue.h>
 #include <param/param_string.h>
 #include "param_sniffer.h"
+#include <apm/csh_api.h>
+#include "known_hosts.h"
+//#include "url_utils.h"
+//#include "victoria_metrics.h"
 
 int vm_running = 0;
 
@@ -42,7 +46,7 @@ typedef struct {
     char * server_ip;
 } vm_args;
 
-static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+static size_t write_callback(__attribute__((unused)) char *ptr, size_t size, size_t nmemb, __attribute__((unused)) void *userdata) {
     return size * nmemb;
 }
 
@@ -210,8 +214,8 @@ void vm_add_param(param_t * param) {
     if(param->type == PARAM_TYPE_STRING || param->type == PARAM_TYPE_DATA){
         return;
     }
-    static char outstr[1000] = {};
-    static char valstr[100] = {};
+    static char outstr[1000] = {0};
+    static char valstr[100] = {0};
     int arr_cnt = param->array_size;
     if (arr_cnt < 0)
         arr_cnt = 1;
@@ -220,9 +224,14 @@ void vm_add_param(param_t * param) {
 	gettimeofday(&tv, NULL);
 	uint64_t time_ms = ((uint64_t) tv.tv_sec * 1000000 + tv.tv_usec) / 1000;
 
+    /* If no hostname is found, `hostname_buf` remains an empty string,
+        which seems to be discarded by Victoria Metrics. */
+    char hostname_buf[HOSTNAME_MAXLEN] = {0};
+    known_hosts_get_name(*param->node, hostname_buf, HOSTNAME_MAXLEN);
+
     for (int j = 0; j < arr_cnt; j++) {
         param_value_str(param, j, valstr, 100);
-        snprintf(outstr, 1000, "%s{node=\"%u\", idx=\"%u\"} %s %"PRIu64"\n", param->name, *(param->node), j, valstr, time_ms);
+        snprintf(outstr, 1000, "%s{node=\"%u\", idx=\"%u\", hostname=\"%s\"} %s %"PRIu64"\n", param->name, *(param->node), j, hostname_buf, valstr, time_ms);
         vm_add(outstr);
     }
 }
