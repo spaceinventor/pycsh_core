@@ -4,6 +4,7 @@
 #include <param/param_queue.h>
 #include <apm/csh_api.h>
 #include <csp/csp_debug.h>
+#include <csp/csp.h>
 
 #include "pycshconfig.h"
 

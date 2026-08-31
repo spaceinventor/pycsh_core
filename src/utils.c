@@ -517,8 +517,7 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 	csp_clock_get_time(&time_now);
 	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
 	queue.last_node = response->id.src;
-	queue.client_timestamp = time_now;
-	queue.last_timestamp = queue.client_timestamp;
+	queue.last_timestamp = time_now;
 
 	/* Even though we have been provided a `param_t * param`,
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
@@ -569,8 +568,7 @@ static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, i
 	csp_clock_get_time(&time_now);
 	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
 	queue.last_node = response->id.src;
-	queue.client_timestamp = time_now;
-	queue.last_timestamp = queue.client_timestamp;
+	queue.last_timestamp = time_now;
 
 	/* Even though we have been provided a `param_t * param`,
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
