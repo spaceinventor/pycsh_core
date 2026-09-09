@@ -58,9 +58,10 @@ apm_csh_dep = dependency('apm_csh', fallback: ['apm_csh', 'apm_csh_dep'], requir
 )
 param_dep = dependency('param', fallback: ['param', 'param_dep'], required: true)
 csp_dep = dependency('csp', fallback: ['csp', 'csp_dep'], required: true)
-
+obc_client_dep = dependency('obc-client', fallback: ['obc-client', 'obc_client_dep'], version: ['>=0.0.2'], required: true)
 
 dependencies += [
+	obc_client_dep,
 	apm_csh_dep,
 	param_dep,
 	csp_dep,
@@ -81,6 +82,7 @@ pycsh_core_dep = declare_dependency(
 
 pycsh_deps = [
 	python3_dep,
+	obc_client_dep,
 	apm_csh_dep,
 	param_dep,
 	csp_dep,
