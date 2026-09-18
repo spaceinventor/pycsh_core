@@ -20,7 +20,10 @@
 #include <param/param_queue.h>
 #include <param/param_string.h>
 #include "param_sniffer.h"
+#include "url_utils.h"
+#include "victoria_metrics.h"
 
+pthread_t vm_push_thread;
 int vm_running = 0;
 
 #define SERVER_PORT      8428
@@ -43,6 +46,8 @@ typedef struct {
 } vm_args;
 
 static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+    (void)ptr;
+    (void)userdata;
     return size * nmemb;
 }
 
@@ -210,8 +215,8 @@ void vm_add_param(param_t * param) {
     if(param->type == PARAM_TYPE_STRING || param->type == PARAM_TYPE_DATA){
         return;
     }
-    static char outstr[1000] = {};
-    static char valstr[100] = {};
+    static char outstr[1000] = {0};
+    static char valstr[100] = {0};
     int arr_cnt = param->array_size;
     if (arr_cnt < 0)
         arr_cnt = 1;

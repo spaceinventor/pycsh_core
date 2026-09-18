@@ -29,6 +29,8 @@ pthread_t param_sniffer_thread;
 FILE *logfile;
 
 int param_sniffer_log(void * ctx, param_queue_t *queue, const param_t *param, int offset, void *reader, csp_timestamp_t *timestamp) {
+    (void)ctx;
+    (void)queue;
 
     char tmp[1000] = {0};
 
@@ -138,6 +140,7 @@ int param_sniffer_crc(csp_packet_t * packet) {
 }
 
 static void * param_sniffer(void * arg) {
+    (void)arg;
     csp_promisc_enable(100);
     while(1) {
         csp_packet_t * packet = csp_promisc_read(CSP_MAX_DELAY);

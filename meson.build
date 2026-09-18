@@ -105,6 +105,7 @@ pycsh_ext = py.extension_module(
 		'src/csh/param_sniffer.c',
 		'src/csh/hk_param_sniffer.c',
 		'src/csh/victoria_metrics.c',
+		'src/csh/url_utils.c',
 
 		'src/csh/param_slash.c',
 		'src/csh/slash_utils.c',

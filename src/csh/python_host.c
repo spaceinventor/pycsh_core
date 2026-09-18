@@ -1,4 +1,6 @@
 
+#include <csp/csp.h>
+
 #include <param/param.h>
 #include <param/param_server.h>
 #include <param/param_queue.h>
@@ -55,6 +57,12 @@ __attribute__((constructor)) void _pycsh_init_slash(void) {
 #endif
 
 
+static void * vmem_memcpy_libparam_to_libcsp(csp_memptr_t * to, csp_const_memptr_t * from, size_t size) {
+
+	return vmem_memcpy(to, from, size);
+}
+
+
 __attribute__((constructor)) void _pycsh_init_vmem(void) {
-    csp_cmp_set_memcpy((csp_memcpy_fnc_t) vmem_memcpy);
+    csp_cmp_set_memcpy((csp_memcpy_fnc_t) vmem_memcpy_libparam_to_libcsp);
 }

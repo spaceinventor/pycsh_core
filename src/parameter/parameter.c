@@ -1127,7 +1127,7 @@ static PyObject * Parameter_to_bytes(ParameterObject *self, PyObject *args, PyOb
 	}
 
     uint8_t queuebuffer[PARAM_SERVER_MTU] = {0};
-	param_queue_t queue = { };
+	param_queue_t queue = {0};
 	param_queue_init(&queue, queuebuffer, PARAM_SERVER_MTU, 0, PARAM_QUEUE_TYPE_SET, 2);
     char temp[queue.buffer_size];
     if(0 == pycsh_param_pyval_to_cval(((ParameterObject *)self)->param->type, value, temp, ((ParameterObject *)self)->param->array_size)) {
@@ -1148,7 +1148,7 @@ static PyMethodDef Parameter_methods[] = {
 		"And allows it to be found in `pycsh.list()`")},
     {"list_forget", (PyCFunctionWithKeywords)Parameter_list_forget, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Remove this parameter from the global parameter list. Hiding it from other CSP nodes on the network. "\
 		"Also removes it from `pycsh.list()`")},
-    {"to_bytes", (PyCFunction)Parameter_to_bytes, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Return the raw network representation of the parameter, suitable for use in a command queue.")},
+    {"to_bytes", (PyCFunctionWithKeywords)Parameter_to_bytes, METH_VARARGS | METH_KEYWORDS, PyDoc_STR("Return the raw network representation of the parameter, suitable for use in a command queue.")},
     {NULL, NULL, 0, NULL}
 };
 #pragma GCC diagnostic pop
