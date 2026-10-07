@@ -1500,6 +1500,8 @@ def csp_add_route(addr: int, mask: int, interface: str|int|Interface, via: int =
     :param mask: Subnet mask of the target subnet
     :param interface: Which of our interfaces to use when routing to the specified subnet (i.e ZMQ0, CAN1, etc.)
     :param via: Via address (whatever that is)
+
+    :raises ModuleNotFoundError: When `PyCSH` is not compiled with `CSP_USE_RTABLE`.
     """
 
 def init(quiet: int = None, stdout: int | str = None, stderr: int | str = None) -> None:

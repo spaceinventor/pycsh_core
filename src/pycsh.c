@@ -235,18 +235,20 @@ static PyMethodDef methods[] = {
 
 	/* Wrappers for src/csp_init_cmd.c */
 	{"csp_init", 	(PyCFunctionWithKeywords)pycsh_csh_csp_init,   METH_VARARGS | METH_KEYWORDS, "Initialize CSP"},
-#if (1 || CSP_HAVE_LIBZMQ)
+#if (1 || CSP_HAVE_LIBZMQ)  /* Runtime handling of `CSP_HAVE_LIBZMQ` in `pycsh_csh_csp_ifadd_zmq()`. */
 	{"csp_add_zmq", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_zmq,   METH_VARARGS | METH_KEYWORDS, "Add a new ZMQ interface"},
 #endif
 	{"csp_add_kiss",(PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_kiss,   METH_VARARGS | METH_KEYWORDS, "Add a new KISS/UART interface"},
-#if (1 || CSP_HAVE_LIBSOCKETCAN)
+#if (1 || CSP_HAVE_LIBSOCKETCAN)  /* Runtime handling of `CSP_HAVE_LIBSOCKETCAN` in `pycsh_csh_csp_ifadd_can()`. */
 	{"csp_add_can", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_can,   METH_VARARGS | METH_KEYWORDS, "Add a new CAN interface"},
 #endif
 	{"csp_add_eth", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_eth,   METH_VARARGS | METH_KEYWORDS, "Add a new ethernet interface"},
 	{"csp_add_udp", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_udp,   METH_VARARGS | METH_KEYWORDS, "Add a new UDP interface"},
 	{"csp_add_tun", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_tun,   METH_VARARGS | METH_KEYWORDS, "Add a new TUN interface"},
 
+#if (1 || CSP_USE_RTABLE)  /* Runtime handling of `CSP_USE_RTABLE` in `pycsh_csh_csp_routeadd_cmd()`. */
 	{"csp_add_route", (PyCFunctionWithKeywords)pycsh_csh_csp_routeadd_cmd,   METH_VARARGS | METH_KEYWORDS, "Add a new route"},
+#endif
 
 	/* Misc */
 	{"init", (PyCFunctionWithKeywords)pycsh_init, 				METH_VARARGS | METH_KEYWORDS, "Initializes the module, with the provided settings."},
