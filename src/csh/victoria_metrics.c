@@ -25,6 +25,7 @@
 //#include "url_utils.h"
 //#include "victoria_metrics.h"
 
+pthread_t vm_push_thread;
 int vm_running = 0;
 
 #define SERVER_PORT      8428
@@ -46,7 +47,9 @@ typedef struct {
     char * server_ip;
 } vm_args;
 
-static size_t write_callback(__attribute__((unused)) char *ptr, size_t size, size_t nmemb, __attribute__((unused)) void *userdata) {
+static size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
+    (void)ptr;
+    (void)userdata;
     return size * nmemb;
 }
 

@@ -64,9 +64,9 @@ static int reset_to_flash(int node, int flash, int times, int ms, int verbose) {
 			boot_img_exist[i] = 1;
 		} else {
 			snprintf(param_name[i], sizeof(param_name[i]), "boot_img%u", i);
-			param_t * new_boot_img = param_list_create_remote(param_id[i], node, PARAM_TYPE_UINT8, PM_CONF, 0, param_name[i], NULL, NULL, -1);
-			boot_img[i] = new_boot_img; // A bit of pointer artimatic to work around the const param_t limitations
-			boot_img_exist[i] = param_list_add(new_boot_img);
+			param_t * newparam = param_list_create_remote(param_id[i], node, PARAM_TYPE_UINT8, PM_CONF, 0, param_name[i], NULL, NULL, -1);
+			boot_img[i] = (const param_t *) newparam;
+			boot_img_exist[i] = param_list_add(newparam);
 		}
 	}
 

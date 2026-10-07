@@ -1208,6 +1208,32 @@ def reboot(node: int = None) -> None:
 def uptime(node: int = None) -> int:
     """ Return the uptime for the given node """
 
+
+def var_show() -> dict[str, str]:
+    """ Return a dict of environment variables and their values. """
+
+def var_get(name: str) -> str:
+    """
+    Return the value of the specified environment variable.
+
+    :raises KeyError: When the specified environment variable does not exist.
+    """
+
+def var_set(name: str, value: str) -> None:
+    """
+    Set the value of the specified environment variable.
+
+    :raises RuntimeError: When the specified environment variable cannot be set.
+    """
+
+def var_unset(name: str) -> None:
+    """
+    Unset the specified environment variable.
+
+    :raises KeyError: When the specified environment variable does not exist.
+    """
+
+
 def get_type(param_identifier: _param_ident_hint, node: int = None) -> _param_type_hint:
     """
     Gets the type of the specified parameter.

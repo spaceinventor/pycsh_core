@@ -59,6 +59,7 @@
 #include "wrapper/param_py.h"
 #include "wrapper/slash_py.h"
 #include "wrapper/dflopt_py.h"
+#include "wrapper/env_var_py.h"
 #include "wrapper/spaceboot_py.h"
 #include "wrapper/csp_init_py.h"
 #include "wrapper/param_list_py.h"
@@ -210,6 +211,11 @@ static PyMethodDef methods[] = {
 	{"uptime", 		(PyCFunctionWithKeywords)pycsh_csp_cmp_uptime,	METH_VARARGS | METH_KEYWORDS, "Return uptime information of the specified node."},
 	{"ifstat", 		(PyCFunctionWithKeywords)pycsh_csp_cmp_ifstat,	METH_VARARGS | METH_KEYWORDS, "Return information about the specified interface."},
 	{"reboot", 		pycsh_slash_reboot, 			 	METH_VARARGS, 				  "Reboot the specified node."},
+
+	{"var_show", 		(PyCFunction)pycsh_var_show, 	METH_NOARGS, "Return a dict of environment variables and their values."},
+	{"var_get", 		(PyCFunctionWithKeywords)pycsh_var_get,	METH_VARARGS | METH_KEYWORDS, "Return the value of the specified environment variable."},
+	{"var_set", 		(PyCFunctionWithKeywords)pycsh_var_set,	METH_VARARGS | METH_KEYWORDS, "Set the value of the specified environment variable."},
+	{"var_unset", 		(PyCFunctionWithKeywords)pycsh_var_unset,	METH_VARARGS | METH_KEYWORDS, "Unset the specified environment variable."},
 
 	/* Utility functions */
 	{"get_type", 	pycsh_util_get_type, 		  	METH_VARARGS, 				  "Gets the type of the specified parameter."},
