@@ -52,34 +52,29 @@ conf.set('PYCSH_HAVE_SLASH', slash_dep.found())
 
 pycsh_config_h = configure_file(output: 'pycshconfig.h', configuration: conf, install_dir: 'include/csh/', install: false)
 
-apm_csh_dep = dependency('apm_csh', fallback: ['apm_csh', 'apm_csh_dep'], required: true).partial_dependency(
-	links: false, 
-	includes: true
-)
+apm_csh_dep = dependency('apm_csh', fallback: ['apm_csh', 'apm_csh_dep'], required: true)
 param_dep = dependency('param', fallback: ['param', 'param_dep'], required: true)
 csp_dep = dependency('csp', fallback: ['csp', 'csp_dep'], required: true)
-obc_client_dep = dependency('obc-client', fallback: ['obc-client', 'obc_client_dep'], version: ['>=0.0.2'], required: true)
 
 # Dependencies meant for libraries must use the .partial_dependency() construct below
 # so that meson does not include the object files of the dependencies in the final library.
 # This is important for libraries that are meant to be linked into other libraries or executables, as it avoids "duplicate symbols" errors
 # when linking final executables/shared libraries.
 dependencies += [
-	obc_client_dep.partial_dependency(
-		links: false, 
+	apm_csh_dep.partial_dependency(
+		links: false,
 		includes: true
 	),
-	apm_csh_dep,
 	param_dep.partial_dependency(
-		links: false, 
+		links: false,
 		includes: true
 	),
 	csp_dep.partial_dependency(
-		links: false, 
+		links: false,
 		includes: true
 	),
 	slash_dep.partial_dependency(
-		links: false, 
+		links: false,
 		includes: true
 	)
 ]
@@ -96,16 +91,14 @@ pycsh_core_dep = declare_dependency(
 	dependencies: dependencies
 )
 
-# The .as_link_whole() constructs below force inclusion of all public symbols into the pycsh shared library, 
+# The .as_link_whole() constructs below force inclusion of all public symbols into the pycsh shared library,
 # not just the symbols used directly by pycsh.
 # This is important so that other Python bindings can depend and use those symbols
 pycsh_deps = [
 	python3_dep,
-	obc_client_dep.as_link_whole(),
-	apm_csh_dep,
-	param_dep.as_link_whole(),  # the .as_link_whole() is to force linking of the builtin commands
-	csp_dep.as_link_whole(),  # the .as_link_whole() is to force linking of the builtin commands
-	# the .as_link_whole() is to force linking of the builtin commands
+	apm_csh_dep.as_link_whole(),
+	param_dep.as_link_whole(),
+	csp_dep.as_link_whole(),
 	slash_dep.as_link_whole(),
 ]
 py = import('python').find_installation('python'+get_option('python3_version'), pure: false)
@@ -114,19 +107,11 @@ pycsh_ext = py.extension_module(
 	'pycsh',
 	pycsh_sources + [
 		# CSH sources
-		# TODO: refactor these into a separate library, to be used by both pycsh and csh 
+		# TODO: refactor these into a separate library, to be used by both pycsh and csh
 		'src/csh/python_host.c',
 		'src/csh/known_hosts.c',
 		'src/csh/csh_defaults.c',
 		'src/csh/environment.c',
-
-		# HK symbol dependencies
-		# We did remove these from PyCSH at one point,
-		#	but now they're needed again.
-		'src/csh/vts.c',
-		'src/csh/param_sniffer.c',
-		'src/csh/hk_param_sniffer.c',
-		'src/csh/victoria_metrics.c',
 
 		'src/csh/param_slash.c',
 		'src/csh/slash_utils.c',
