@@ -30,6 +30,7 @@ pycsh_sources = [
 	'src/wrapper/py_csp.c',
 	'src/wrapper/param_py.c',
 	'src/wrapper/dflopt_py.c',
+	'src/wrapper/env_var_py.c',
 	'src/wrapper/csp_init_py.c',
 	'src/wrapper/spaceboot_py.c',
 	'src/wrapper/param_list_py.c',

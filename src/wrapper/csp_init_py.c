@@ -506,6 +506,11 @@ PyObject * pycsh_csh_csp_ifadd_tun(PyObject * self, PyObject * args, PyObject * 
 PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject * kwds) {
     (void)self;
 
+    #if (!CSP_USE_RTABLE)
+    PyErr_SetString(PyExc_ModuleNotFoundError, "`PyCSH` not compiled with `CSP_USE_RTABLE`, cannot use `.csp_add_route()`.");
+    return NULL;
+    #else
+
     unsigned int addr;
     unsigned int mask;
     PyObject * interface_arg = NULL;
@@ -574,4 +579,6 @@ PyObject * pycsh_csh_csp_routeadd_cmd(PyObject * self, PyObject * args, PyObject
 
     /* TODO Kevin: Add and return Route class */
     Py_RETURN_NONE;
+
+    #endif  // CSP_USE_RTABLE
 }

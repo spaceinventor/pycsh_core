@@ -1,4 +1,6 @@
 
+#include <csp/csp.h>
+
 #include <param/param.h>
 #include <param/param_server.h>
 #include <param/param_queue.h>

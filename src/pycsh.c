@@ -59,6 +59,7 @@
 #include "wrapper/param_py.h"
 #include "wrapper/slash_py.h"
 #include "wrapper/dflopt_py.h"
+#include "wrapper/env_var_py.h"
 #include "wrapper/spaceboot_py.h"
 #include "wrapper/csp_init_py.h"
 #include "wrapper/param_list_py.h"
@@ -211,6 +212,11 @@ static PyMethodDef methods[] = {
 	{"ifstat", 		(PyCFunctionWithKeywords)pycsh_csp_cmp_ifstat,	METH_VARARGS | METH_KEYWORDS, "Return information about the specified interface."},
 	{"reboot", 		pycsh_slash_reboot, 			 	METH_VARARGS, 				  "Reboot the specified node."},
 
+	{"var_show", 		(PyCFunction)pycsh_var_show, 	METH_NOARGS, "Return a dict of environment variables and their values."},
+	{"var_get", 		(PyCFunctionWithKeywords)pycsh_var_get,	METH_VARARGS | METH_KEYWORDS, "Return the value of the specified environment variable."},
+	{"var_set", 		(PyCFunctionWithKeywords)pycsh_var_set,	METH_VARARGS | METH_KEYWORDS, "Set the value of the specified environment variable."},
+	{"var_unset", 		(PyCFunctionWithKeywords)pycsh_var_unset,	METH_VARARGS | METH_KEYWORDS, "Unset the specified environment variable."},
+
 	/* Utility functions */
 	{"get_type", 	pycsh_util_get_type, 		  	METH_VARARGS, 				  "Gets the type of the specified parameter."},
 	{"slash_execute", (PyCFunctionWithKeywords)pycsh_slash_execute, 			METH_VARARGS | METH_KEYWORDS, "Execute string as a slash command. Used to run .csh scripts"},
@@ -229,18 +235,20 @@ static PyMethodDef methods[] = {
 
 	/* Wrappers for src/csp_init_cmd.c */
 	{"csp_init", 	(PyCFunctionWithKeywords)pycsh_csh_csp_init,   METH_VARARGS | METH_KEYWORDS, "Initialize CSP"},
-#if (1 || CSP_HAVE_LIBZMQ)
+#if (1 || CSP_HAVE_LIBZMQ)  /* Runtime handling of `CSP_HAVE_LIBZMQ` in `pycsh_csh_csp_ifadd_zmq()`. */
 	{"csp_add_zmq", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_zmq,   METH_VARARGS | METH_KEYWORDS, "Add a new ZMQ interface"},
 #endif
 	{"csp_add_kiss",(PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_kiss,   METH_VARARGS | METH_KEYWORDS, "Add a new KISS/UART interface"},
-#if (1 || CSP_HAVE_LIBSOCKETCAN)
+#if (1 || CSP_HAVE_LIBSOCKETCAN)  /* Runtime handling of `CSP_HAVE_LIBSOCKETCAN` in `pycsh_csh_csp_ifadd_can()`. */
 	{"csp_add_can", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_can,   METH_VARARGS | METH_KEYWORDS, "Add a new CAN interface"},
 #endif
 	{"csp_add_eth", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_eth,   METH_VARARGS | METH_KEYWORDS, "Add a new ethernet interface"},
 	{"csp_add_udp", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_udp,   METH_VARARGS | METH_KEYWORDS, "Add a new UDP interface"},
 	{"csp_add_tun", (PyCFunctionWithKeywords)pycsh_csh_csp_ifadd_tun,   METH_VARARGS | METH_KEYWORDS, "Add a new TUN interface"},
 
+#if (1 || CSP_USE_RTABLE)  /* Runtime handling of `CSP_USE_RTABLE` in `pycsh_csh_csp_routeadd_cmd()`. */
 	{"csp_add_route", (PyCFunctionWithKeywords)pycsh_csh_csp_routeadd_cmd,   METH_VARARGS | METH_KEYWORDS, "Add a new route"},
+#endif
 
 	/* Misc */
 	{"init", (PyCFunctionWithKeywords)pycsh_init, 				METH_VARARGS | METH_KEYWORDS, "Initializes the module, with the provided settings."},

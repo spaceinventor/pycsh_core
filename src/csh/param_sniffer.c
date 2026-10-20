@@ -30,7 +30,9 @@ int sniffer_running = 0;
 pthread_t param_sniffer_thread;
 FILE *logfile;
 
-int param_sniffer_log(__attribute__((unused)) void * ctx, __attribute__((unused)) param_queue_t *queue, const param_t *param, int offset, void *reader, csp_timestamp_t *timestamp) {
+int param_sniffer_log(void * ctx, param_queue_t *queue, const param_t *param, int offset, void *reader, csp_timestamp_t *timestamp) {
+    (void)ctx;
+    (void)queue;
 
     char tmp[1000] = {0};
 
@@ -144,7 +146,8 @@ int param_sniffer_crc(csp_packet_t * packet) {
     return 0;
 }
 
-static void * param_sniffer(__attribute__((unused)) void * arg) {
+static void * param_sniffer(void * arg) {
+    (void)arg;
     csp_promisc_enable(100);
     while(1) {
         csp_packet_t * packet = csp_promisc_read(CSP_MAX_DELAY);
