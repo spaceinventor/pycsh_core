@@ -161,15 +161,18 @@ PyObject * pycsh_csp_cmp_uptime(PyObject * self, PyObject * args, PyObject * kwd
     return Py_BuildValue("I", uptime);
 }
 
-PyObject * pycsh_slash_reboot(PyObject * self, PyObject * args) {
+PyObject * pycsh_slash_reboot(PyObject * self, PyObject * args, PyObject * kwds) {
     (void)self;
 
     CSP_INIT_CHECK()
 
-    unsigned int node = pycsh_dfl_node;
+    uint16_t node = pycsh_dfl_node;
 
-    if (!PyArg_ParseTuple(args, "|I", &node))
-        return NULL;  // Raises TypeError.
+    static char *kwlist[] = {"node", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|H", kwlist, &node)) {
+        return NULL;  // TypeError is thrown
+    }
 
     Py_BEGIN_ALLOW_THREADS;
     csp_reboot(node);

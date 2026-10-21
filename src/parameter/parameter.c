@@ -132,7 +132,7 @@ PyObject * pycsh_Parameter_from_param(PyTypeObject *type, const param_t * param,
 	self->paramver = paramver;
 	self->free_in_dealloc = free_in_dealloc;
 
-	self->type = (PyTypeObject *)pycsh_util_get_type((PyObject *)self, NULL);
+	self->type = (PyTypeObject *)pycsh_util_get_type((PyObject *)self, NULL, NULL);
 
     return (PyObject *) self;
 }

@@ -87,12 +87,14 @@ PyObject * pycsh_slash_timeout(PyObject * self, PyObject * args, PyObject * kwds
 	return Py_BuildValue("i", pycsh_dfl_timeout);
 }
 
-PyObject * pycsh_slash_verbose(PyObject * self, PyObject * args) {
+PyObject * pycsh_slash_verbose(PyObject * self, PyObject * args, PyObject * kwds) {
 	(void)self;
 
 	int verbose = INT_MIN;
 
-	if (!PyArg_ParseTuple(args, "|i", &verbose)) {
+	static char *kwlist[] = {"verbose", NULL};
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "|i", kwlist, &verbose)) {
 		return NULL;  // TypeError is thrown
 	}
 

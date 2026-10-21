@@ -378,9 +378,8 @@ static PyTypeObject * _pycsh_misc_param_t_type(const param_t * param) {
 
 /* Public interface for '_pycsh_misc_param_t_type()'
    Does not increment the reference count of the found type before returning. */
-PyObject * pycsh_util_get_type(PyObject * self, PyObject * args) {
+PyObject * pycsh_util_get_type(PyObject * self, PyObject * args, PyObject * kwds) {
 
-	PyObject * param_identifier;
 	int node = pycsh_dfl_node;
 
 	const param_t * param;
@@ -394,7 +393,12 @@ PyObject * pycsh_util_get_type(PyObject * self, PyObject * args) {
 		param = _self->param;
 
 	} else {
-		if (!PyArg_ParseTuple(args, "O|i", &param_identifier, &node)) {
+
+		PyObject * param_identifier;
+
+		static char *kwlist[] = {"param_identifier", "node", NULL};
+
+		if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|i:get_type", kwlist, &param_identifier, &node)) {
 			return NULL;  // TypeError is thrown
 		}
 

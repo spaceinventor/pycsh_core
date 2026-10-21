@@ -111,7 +111,7 @@ const param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, P
 
 /* Public interface for '_pycsh_misc_param_t_type()'
    Increments the reference count of the found type before returning. */
-PyObject * pycsh_util_get_type(PyObject * self, PyObject * args);
+PyObject * pycsh_util_get_type(PyObject * self, PyObject * args, PyObject * kwds);
 
 
 /**

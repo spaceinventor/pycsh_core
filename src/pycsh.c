@@ -184,42 +184,42 @@ static PyObject * pycsh_init(PyObject * self, PyObject * args, PyObject *kwds) {
 static PyMethodDef methods[] = {
 
 	/* Converted CSH commands from libparam/src/param/param_slash.c */
-	{"get", 		(PyCFunctionWithKeywords)pycsh_param_get, 	METH_VARARGS | METH_KEYWORDS, "Set the value of a parameter."},
-	{"set", 		(PyCFunctionWithKeywords)pycsh_param_set, 	METH_VARARGS | METH_KEYWORDS, "Get the value of a parameter."},
+	{"get", 		(PyCFunctionWithKeywords)pycsh_param_get, 		METH_VARARGS | METH_KEYWORDS, "Set the value of a parameter."},
+	{"set", 		(PyCFunctionWithKeywords)pycsh_param_set, 		METH_VARARGS | METH_KEYWORDS, "Get the value of a parameter."},
 	// {"push", 		(PyCFunction)pycsh_param_push,	METH_VARARGS | METH_KEYWORDS, "Push the current queue."},
-	{"pull", 		(PyCFunctionWithKeywords)pycsh_param_pull,	METH_VARARGS | METH_KEYWORDS, "Pull all or a specific set of parameters."},
-	{"cmd_done", 	pycsh_param_cmd_done, 			METH_NOARGS, 				  "Clears the queue."},
-	{"cmd_new", 	(PyCFunctionWithKeywords)pycsh_param_cmd_new,METH_VARARGS | METH_KEYWORDS,"Create a new command"},
+	{"pull", 		(PyCFunctionWithKeywords)pycsh_param_pull,		METH_VARARGS | METH_KEYWORDS, "Pull all or a specific set of parameters."},
+	{"cmd_done", 	pycsh_param_cmd_done, 							METH_NOARGS, 				  "Clears the queue."},
+	{"cmd_new", 	(PyCFunctionWithKeywords)pycsh_param_cmd_new,	METH_VARARGS | METH_KEYWORDS,"Create a new command"},
 	{"node", 		(PyCFunctionWithKeywords)pycsh_slash_node, 	METH_VARARGS | METH_KEYWORDS, "Used to get or change the default node."},
-	{"timeout", 	(PyCFunctionWithKeywords)pycsh_slash_timeout,METH_VARARGS | METH_KEYWORDS,"Used to get or change the default timeout."},
-	{"verbose", 	pycsh_slash_verbose, 			METH_VARARGS, 		  		  "Used to get or change the default parameter verbosity."},
+	{"timeout", 	(PyCFunctionWithKeywords)pycsh_slash_timeout,	METH_VARARGS | METH_KEYWORDS,"Used to get or change the default timeout."},
+	{"verbose", 	(PyCFunctionWithKeywords)pycsh_slash_verbose,	METH_VARARGS | METH_KEYWORDS, 		  		  "Used to get or change the default parameter verbosity."},
 	{"queue", 		pycsh_param_cmd,			  	METH_NOARGS, 				  "Print the current command."},
 
 	/* Converted CSH commands from libparam/src/param/list/param_list_slash.c */
-	{"list", 		(PyCFunctionWithKeywords)pycsh_param_list,		      METH_VARARGS | METH_KEYWORDS, "List all known parameters."},
-	{"list_download",(PyCFunctionWithKeywords)pycsh_param_list_download,  METH_VARARGS | METH_KEYWORDS, "Download all parameters on the specified node."},
-	{"list_forget", (PyCFunctionWithKeywords)pycsh_param_list_forget, 	  METH_VARARGS | METH_KEYWORDS, "Remove remote parameters, matching the provided arguments, from the global list."},
-	{"list_save", 	(PyCFunctionWithKeywords)pycsh_param_list_save, 	  METH_VARARGS | METH_KEYWORDS, "Save a list of parameters to a file."},
-	{"list_add", 	(PyCFunctionWithKeywords)pycsh_param_list_add, 	      METH_VARARGS | METH_KEYWORDS, "Add a paramter to the global list."},
+	{"list", 		(PyCFunctionWithKeywords)pycsh_param_list,				METH_VARARGS | METH_KEYWORDS, "List all known parameters."},
+	{"list_download",(PyCFunctionWithKeywords)pycsh_param_list_download, METH_VARARGS | METH_KEYWORDS, "Download all parameters on the specified node."},
+	{"list_forget", (PyCFunctionWithKeywords)pycsh_param_list_forget, 	METH_VARARGS | METH_KEYWORDS, "Remove remote parameters, matching the provided arguments, from the global list."},
+	{"list_save", 	(PyCFunctionWithKeywords)pycsh_param_list_save, 	METH_VARARGS | METH_KEYWORDS, "Save a list of parameters to a file."},
+	{"list_add", 	(PyCFunctionWithKeywords)pycsh_param_list_add, 	    METH_VARARGS | METH_KEYWORDS, "Add a paramter to the global list."},
 
 	// {"list_load", 	pycsh_param_list_load, 		  	METH_VARARGS, 				  "Load a list of parameters from a file."},
 
 	/* Converted CSH commands from csh/src/slash_csp.c */
 	{"info", 		(PyCFunction)pycsh_csp_info, 	METH_NOARGS, "Return local CSP interfaces and Routes"},
 	{"ping", 		(PyCFunctionWithKeywords)pycsh_slash_ping, 	METH_VARARGS | METH_KEYWORDS, "Ping the specified node."},
-	{"ident", 		(PyCFunctionWithKeywords)pycsh_slash_ident,	METH_VARARGS | METH_KEYWORDS, "Print the identity of the specified node."},
-	{"uptime", 		(PyCFunctionWithKeywords)pycsh_csp_cmp_uptime,	METH_VARARGS | METH_KEYWORDS, "Return uptime information of the specified node."},
-	{"ifstat", 		(PyCFunctionWithKeywords)pycsh_csp_cmp_ifstat,	METH_VARARGS | METH_KEYWORDS, "Return information about the specified interface."},
-	{"reboot", 		pycsh_slash_reboot, 			 	METH_VARARGS, 				  "Reboot the specified node."},
+	{"ident", 	(PyCFunctionWithKeywords)pycsh_slash_ident,	METH_VARARGS | METH_KEYWORDS, "Print the identity of the specified node."},
+	{"uptime", 	(PyCFunctionWithKeywords)pycsh_csp_cmp_uptime,	METH_VARARGS | METH_KEYWORDS, "Return uptime information of the specified node."},
+	{"ifstat", 	(PyCFunctionWithKeywords)pycsh_csp_cmp_ifstat,	METH_VARARGS | METH_KEYWORDS, "Return information about the specified interface."},
+	{"reboot", 	(PyCFunctionWithKeywords)pycsh_slash_reboot, 	METH_VARARGS | METH_KEYWORDS,	"Reboot the specified node."},
 
-	{"var_show", 		(PyCFunction)pycsh_var_show, 	METH_NOARGS, "Return a dict of environment variables and their values."},
-	{"var_get", 		(PyCFunctionWithKeywords)pycsh_var_get,	METH_VARARGS | METH_KEYWORDS, "Return the value of the specified environment variable."},
-	{"var_set", 		(PyCFunctionWithKeywords)pycsh_var_set,	METH_VARARGS | METH_KEYWORDS, "Set the value of the specified environment variable."},
-	{"var_unset", 		(PyCFunctionWithKeywords)pycsh_var_unset,	METH_VARARGS | METH_KEYWORDS, "Unset the specified environment variable."},
+	{"var_show", 	(PyCFunction)pycsh_var_show, 					METH_NOARGS, 					"Return a dict of environment variables and their values."},
+	{"var_get", 	(PyCFunctionWithKeywords)pycsh_var_get,		METH_VARARGS | METH_KEYWORDS, "Return the value of the specified environment variable."},
+	{"var_set", 	(PyCFunctionWithKeywords)pycsh_var_set,		METH_VARARGS | METH_KEYWORDS, "Set the value of the specified environment variable."},
+	{"var_unset", (PyCFunctionWithKeywords)pycsh_var_unset,		METH_VARARGS | METH_KEYWORDS, "Unset the specified environment variable."},
 
 	/* Utility functions */
-	{"get_type", 	pycsh_util_get_type, 		  	METH_VARARGS, 				  "Gets the type of the specified parameter."},
-	{"slash_execute", (PyCFunctionWithKeywords)pycsh_slash_execute, 			METH_VARARGS | METH_KEYWORDS, "Execute string as a slash command. Used to run .csh scripts"},
+	{"get_type", 		(PyCFunctionWithKeywords)pycsh_util_get_type, 	METH_VARARGS | METH_KEYWORDS, "Gets the type of the specified parameter."},
+	{"slash_execute", (PyCFunctionWithKeywords)pycsh_slash_execute, 	METH_VARARGS | METH_KEYWORDS, "Execute string as a slash command. Used to run .csh scripts"},
 
 	/* Converted vmem commands from libparam/src/vmem/vmem_client_slash.c */
 	{"vmem", 	(PyCFunctionWithKeywords)pycsh_param_vmem,   METH_VARARGS | METH_KEYWORDS, "Builds a string of the vmem at the specified node."},
