@@ -687,7 +687,7 @@ class ParameterList(_pylist[Parameter], _Iterable):
         or Parameter objects directly through *args, as its initial values.
         """
 
-    def append(self, __object: Parameter) -> None:
+    def append(self, __object: Parameter, /) -> None:
         """
         Appends the specified Parameter object to the list.
 
@@ -915,7 +915,7 @@ class Interface:
     irq: int
     "Interrupts"
 
-    def set_promisc(new_promisc: bool) -> None:
+    def set_promisc(new_promisc: bool, /) -> None:
         """
         Update whether CSP interface should be promiscuous (parse all packets)
         
