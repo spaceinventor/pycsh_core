@@ -108,6 +108,10 @@ PyObject * pycsh_slash_ident(PyObject * self, PyObject * args, PyObject * kwds) 
 
     PyObject * list_string = PyUnicode_New(0, 0);
 
+    if(!list_string) {
+        return PyErr_NoMemory();
+    }
+
     while(true) {
 
         Py_BEGIN_ALLOW_THREADS;
