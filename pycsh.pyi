@@ -1194,7 +1194,7 @@ def ifstat(if_name: str, node: int = None, timeout: int = None) -> Ifstat:
 
     :param if_name: Name of the interface to query.
     :param node: Node on which the interface is located.
-    :param timeout: Timeout for remote node requests.
+    :param timeout: Timeout (in ms) for remote node requests.
 
     :raises RuntimeError: When called before .init().
     :raises ConnectionError: When no response is received.
@@ -1208,6 +1208,14 @@ def reboot(node: int = None) -> None:
 def uptime(node: int = None) -> int:
     """ Return the uptime for the given node """
 
+def stdbuf(node: int = None, timeout: int = None, version: int = 2) -> str:
+    """
+    Return a string of the stdbuf (stdout and stderr) ringbuffer on the specified node
+
+    :param node: Node to request stdbuf from.
+    :param timeout: Timeout (in ms) for each stdbuf reply (Exhausting the buffer often requires multiple replies).
+    :param version: Request version. Only version 2 is currently supported, which excludes legacy devices.
+    """
 
 def var_show() -> dict[str, str]:
     """ Return a dict of environment variables and their values. """
