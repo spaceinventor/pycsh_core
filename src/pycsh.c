@@ -64,6 +64,7 @@
 #include "wrapper/csp_init_py.h"
 #include "wrapper/param_list_py.h"
 #include "wrapper/vmem_client_py.h"
+#include "wrapper/stdbuf_client_py.h"
 #include "wrapper/victoria_metrics_py.h"
 
 /* Assertions used when parsing Python arguments, i.e int -> uint32_t */
@@ -208,9 +209,10 @@ static PyMethodDef methods[] = {
 	{"info", 		(PyCFunction)pycsh_csp_info, 	METH_NOARGS, "Return local CSP interfaces and Routes"},
 	{"ping", 		(PyCFunctionWithKeywords)pycsh_slash_ping, 	METH_VARARGS | METH_KEYWORDS, "Ping the specified node."},
 	{"ident", 	(PyCFunctionWithKeywords)pycsh_slash_ident,	METH_VARARGS | METH_KEYWORDS, "Print the identity of the specified node."},
-	{"uptime", 	(PyCFunctionWithKeywords)pycsh_csp_cmp_uptime,	METH_VARARGS | METH_KEYWORDS, "Return uptime information of the specified node."},
 	{"ifstat", 	(PyCFunctionWithKeywords)pycsh_csp_cmp_ifstat,	METH_VARARGS | METH_KEYWORDS, "Return information about the specified interface."},
 	{"reboot", 	(PyCFunctionWithKeywords)pycsh_slash_reboot, 	METH_VARARGS | METH_KEYWORDS,	"Reboot the specified node."},
+	{"uptime", 	(PyCFunctionWithKeywords)pycsh_csp_cmp_uptime,	METH_VARARGS | METH_KEYWORDS, "Return uptime information of the specified node."},
+	{"stdbuf", 	(PyCFunctionWithKeywords)pycsh_slash_stdbuf, 	METH_VARARGS | METH_KEYWORDS,	"Return a string of the stdbuf (stdout and stderr) ringbuffer on the specified node"},
 
 	{"var_show", 	(PyCFunction)pycsh_var_show, 					METH_NOARGS, 					"Return a dict of environment variables and their values."},
 	{"var_get", 	(PyCFunctionWithKeywords)pycsh_var_get,		METH_VARARGS | METH_KEYWORDS, "Return the value of the specified environment variable."},
