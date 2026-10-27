@@ -35,6 +35,7 @@ pycsh_sources = [
 	'src/wrapper/spaceboot_py.c',
 	'src/wrapper/param_list_py.c',
 	'src/wrapper/vmem_client_py.c',
+	'src/wrapper/stdbuf_client_py.c',
 	# 'src/wrapper/victoria_metrics_py.c',
 
 	# Utilities
