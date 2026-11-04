@@ -168,3 +168,14 @@ int pycsh_parse_param_mask(PyObject * mask_in, uint32_t * mask_out);
 
 extern bool csp_router_is_running(void);
 extern void csp_router_set_running(bool is_running);
+
+/**
+ * @brief Convert an arbritrary value to a parameter value, based on parameter type.
+ *
+ * @param type Parameter type, to determine desired output value type from.
+ * @param value_in PyObject* value to parse.
+ * @param dataout Buffer for retrieved value.
+ * @param array_len Needed for array parameters
+ * @return int 0 for success.
+ */
+ int pycsh_param_pyval_to_cval(param_type_e type, PyObject * value_in, void * dataout, size_t array_len);

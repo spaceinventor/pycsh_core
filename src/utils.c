@@ -557,7 +557,7 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
 		Although we are SOL if those unexpected parameters are not in the list.
 		TODO Kevin: Make sure ParameterList accounts for this scenario. */
-	param_queue_apply(&queue, from, verbose);
+	param_queue_apply(&queue, from);
 
 	/* For now we tolerate possibly setting parameters twice,
 		as we have not had remote parameters with callbacks/side-effects yet.
@@ -603,7 +603,7 @@ static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, i
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
 		Although we are SOL if those unexpected parameters are not in the list.
 		TODO Kevin: Make sure ParameterList accounts for this scenario. */
-	param_queue_apply(&queue, from, verbose);
+	param_queue_apply(&queue, from);
 
 
 	csp_buffer_free(response);
@@ -995,7 +995,7 @@ static int pycsh_param_push_queue(param_queue_t *queue, int prio, int verbose, i
 
 	if(!ack_with_pull_params) {
         /* TODO Kevin: This will nok work with PyCSH parameters outside of the list. */
-		param_queue_apply(queue, host, verbose);
+		param_queue_apply(queue, host);
 	}
 
 	return 0;

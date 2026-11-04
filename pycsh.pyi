@@ -630,6 +630,19 @@ class Parameter:
         i.e: `Parameter(...)[...] = ...` == `Parameter(...).value[...] = ...`
         """
 
+    def to_bytes(self, value: int | float | str) -> bytes:
+        """
+        Convert a value of the parameter to bytes, according to the parameter's type.
+        This method uses the param serialization protocol (based on msgpack). 
+
+        :param value: Value to be serialized.
+
+        :raises MemoryError: When the parameter is too big to be serialized.
+        :raises TypeError: When the provided value is of an invalid type for the parameter.
+
+        :returns: The provided value converted to bytes, according to the parameter's type.
+        """
+
 
 class PythonGetSetParameter(Parameter):
     """ ParameterArray created in Python. """
@@ -1253,13 +1266,15 @@ def vmem_upload(address: int, data_in: bytes | _IOBase, node: int = None, window
     :returns: int of number of bytes uploaded. May be smaller than `data_in` if the transfer is interrupted.
     """
 
-def switch(slot: int, node: int = None, times: int = None) -> None:
+def switch(slot: int, node: int = None, times: int = None, reboot_delay: int = 1000, verbose: int = None) -> None:
     """
     Reboot into the specified firmware slot.
 
     :param slot: Flash slot to boot into.
     :param node: Node to reboot.
     :param times: number of times to boot into this slot (default = 1).
+    :param reboot_delay: How long to wait before checking if module has finished rebooting.
+    :param verbose: Larger numbers mean more `printf()`.
 
     :raises ConnectionError: When the system cannot be pinged after reboot.
     """
@@ -1288,7 +1303,7 @@ def program(slot: int, filename: str, node: int = None, do_crc32: bool = False, 
     :raises ConnectionError: When no connection to the specified node can be established.
     """
 
-def sps(from_: int, to: int, filename: str, node: int = None, window: int = None, conn_timeout: int = None, packet_timeout: int = None, ack_timeout: int = None, ack_count: int = None) -> None:
+def sps(from_: int, to: int, filename: str, node: int = None, reboot_delay: int = 1000, verbose: int = None, *, window: int = None, conn_timeout: int = None, packet_timeout: int = None, delayed_acks: int = None, ack_timeout: int = None, ack_count: int = None) -> None:
     """
     Switch -> Program -> Switch
 
@@ -1296,11 +1311,15 @@ def sps(from_: int, to: int, filename: str, node: int = None, window: int = None
     :param to: Flash slot to program.
     :param filename: firmware .bin file to upload.
     :param node: Node of the module to upload to.
-    :param window: rdp window (default = 3 packets)
-    :param conn_timeout: rdp connection timeout (default = 10 seconds)
-    :param packet_timeout: rdp packet timeout (default = 5 seconds)
-    :param ack_timeout: rdp max acknowledgement interval (default = 2 seconds)
-    :param ack_count: rdp ack for each (default = 2 packets)
+    :param reboot_delay: How long to wait before checking if module has finished rebooting.
+    :param verbose: Larger numbers mean more `printf()`.
+    
+    :param window: rdp window (default = 3 packets) (keyword-only)
+    :param conn_timeout: rdp connection timeout (default = 10 seconds) (keyword-only)
+    :param packet_timeout: rdp packet timeout (default = 5 seconds) (keyword-only)
+    :param delayed_acks: ¯|_(ツ)_/¯ (keyword-only)
+    :param ack_timeout: rdp max acknowledgement interval (default = 2 seconds) (keyword-only)
+    :param ack_count: rdp ack for each (default = 2 packets) (keyword-only)
 
     :raises IOError: When an invalid filename is specified.
     :raises LookupError: When an otherwise valid filename is incompatible with the specified module.
