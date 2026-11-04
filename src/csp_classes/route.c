@@ -66,6 +66,9 @@ static bool route_init_iter(void * ctx, csp_route_t * route) {
 
     PyObject *route_obj = (PyObject *)Route_from_csp_route_t(&RouteType, route);
     if (!route_obj) {
+        /* We have already resized the tuple,
+            so we rely on checking exception in next iteration for correct operation. */
+        assert(PyErr_Occurred());
         return false;
     }
 
@@ -170,10 +173,10 @@ static PyObject * Route_get_iface(RouteObject *self, void *closure) {
 }
 
 static PyGetSetDef Route_getsetters[] = {
-    {"addr", (getter)Route_get_address, NULL, "Route address", NULL},
-    {"mask", (getter)Route_get_netmask, NULL, "Route netmask", NULL},
-    {"via",     (getter)Route_get_via,     NULL, "Route via", NULL},
-    {"iface",   (getter)Route_get_iface,   NULL, "Route interface", NULL},
+    {"addr", (getter)Route_get_address, NULL, PyDoc_STR("Route address"),  NULL},
+    {"mask", (getter)Route_get_netmask, NULL, PyDoc_STR("Route netmask"),  NULL},
+    {"via",  (getter)Route_get_via,     NULL, PyDoc_STR("Route via"),      NULL},
+    {"iface",(getter)Route_get_iface,   NULL, PyDoc_STR("Route interface"),NULL},
     {NULL}  // Sentinel
 };
 

@@ -10,6 +10,7 @@
 #include <pycsh/utils.h>
 
 #include <dirent.h>
+#include <apm/csh_api.h>
 #include <csp/csp_hooks.h>
 #include <csp/csp_buffer.h>
 #include <param/param_server.h>
@@ -275,24 +276,60 @@ param_t * _pycsh_util_find_param_t(PyObject * param_identifier, int node) {
 
 	param_t * param = NULL;
 
-	if (PyUnicode_Check(param_identifier))  // is_string
+	if (PyUnicode_Check(param_identifier)) {  // is_string
 		param = param_list_find_name(node, (char*)PyUnicode_AsUTF8(param_identifier));
-	else if (PyLong_Check(param_identifier))  // is_int
+	} else if (PyLong_Check(param_identifier)) {  // is_int
 		param = param_list_find_id(node, (int)PyLong_AsLong(param_identifier));
-	else if (PyObject_TypeCheck(param_identifier, &ParameterType))
+	} else if (PyObject_TypeCheck(param_identifier, &ParameterType)) {
 		param = ((ParameterObject *)param_identifier)->param;
-	else {  // Invalid type passed.
+	} else {  // Invalid type passed.
 		PyErr_SetString(PyExc_TypeError,
 			"Parameter identifier must be either an integer or string of the parameter ID or name respectively.");
 		return NULL;
 	}
 
-	if (param == NULL)  // Check if a parameter was found.
+	if (param == NULL) {  // Check if a parameter was found.
 		PyErr_SetString(PyExc_ValueError, "Could not find a matching parameter.");
+	}
 
 	return param;  // or NULL for ValueError.
 }
 
+/**
+	If `host` is a Python string, assume it to be hostname of the node. Otherwise it is int node.
+ */
+param_t * _pycsh_util_find_param_t_hostname(PyObject * param_identifier, PyObject * host) {
+
+    if (host == NULL) {
+        return _pycsh_util_find_param_t(param_identifier, pycsh_dfl_node);
+    }
+
+	if (PyUnicode_Check(host)) {  // is_string
+		unsigned int node = -1;
+		const char * hostname_str = (char*)PyUnicode_AsUTF8(host);
+		if (0 >= get_host_by_addr_or_name(&node, hostname_str)) {
+			PyErr_Format(PyExc_LookupError, "'%s' does not resolve to a valid CSP address", hostname_str);
+			return NULL;
+		}
+		return _pycsh_util_find_param_t(param_identifier, node);
+	}
+
+	if (!PyLong_Check(host)) {  // is_int
+		PyErr_Format(PyExc_TypeError, "`host` argument must be `int|str`, not %s", host->ob_type->tp_name);
+		return NULL;
+	}
+
+	int overflow = 2;
+	const long node_long = PyLong_AsLongAndOverflow(host, &overflow);
+	if ((overflow != 2 && overflow != 0) || (!overflow && PyErr_Occurred())) {
+		if (!PyErr_Occurred()) {
+			PyErr_Format(PyExc_ValueError, "Error converting Python int to C int node=%ld overflow=%d", node_long, overflow);
+		}
+		return NULL;
+	}
+
+	return _pycsh_util_find_param_t(param_identifier, (int)node_long);
+}
 
 /* Gets the best Python representation of the param_t's type, i.e 'int' for 'uint32'.
    Does not increment the reference count of the found type before returning.
@@ -513,11 +550,8 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 	param_list_t * param_list = (param_list_t *)context;
 
 	param_queue_t queue;
-	csp_timestamp_t time_now;
-	csp_clock_get_time(&time_now);
 	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
 	queue.last_node = response->id.src;
-	queue.last_timestamp = time_now;
 
 	/* Even though we have been provided a `param_t * param`,
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
@@ -537,9 +571,7 @@ static void pycsh_param_transaction_callback_pull(csp_packet_t *response, int ve
 }
 
 typedef struct pycsh_queue_apply_context_s {
-	param_queue_apply_context_t vanilla_context;  /* Original context from libparam */
 
-	param_decode_callback_f err_callback;
 	PyObject * py_err_callback;
 
 	/* TODO Kevin: Now that the callback is called for every parameter,
@@ -564,22 +596,15 @@ static void pycsh_param_pull_all_callback(csp_packet_t *response, int verbose, i
 	//printf("From %d\n", from);
 
 	param_queue_t queue;
-	csp_timestamp_t time_now;
-	csp_clock_get_time(&time_now);
 	param_queue_init(&queue, &response->data[2], response->length - 2, response->length - 2, PARAM_QUEUE_TYPE_SET, version);
 	queue.last_node = response->id.src;
-	queue.last_timestamp = time_now;
 
 	/* Even though we have been provided a `param_t * param`,
 		we still call `param_queue_apply()` to support replies which unexpectedly contain multiple parameters.
 		Although we are SOL if those unexpected parameters are not in the list.
 		TODO Kevin: Make sure ParameterList accounts for this scenario. */
-	param_queue_apply_w_callback(&queue, from, context->err_callback, context);
+	param_queue_apply(&queue, from);
 
-	/* Should we always print error here, no matter `verbose`? */
-	if(verbose && !((param_queue_apply_context_t*)context)->num_unknown_params && !((param_queue_apply_context_t*)context)->num_known_params) {
-		printf("No parameters returned in response\n");
-	}
 
 	csp_buffer_free(response);
 }
@@ -762,46 +787,6 @@ bool is_valid_err_callback(const PyObject *callback, bool raise_exc) {
 }
 
 
-static void pycsh_decode_err_callback(uint16_t node, uint16_t id, uint8_t debug_level, param_t * param, pycsh_queue_apply_context_t * context) {
-
-	if (!context) {
-		return;
-	}
-	/* Call the original callback, to get error and normal prints. */
-	param_queue_apply_callback(node, id, debug_level, param, &context->vanilla_context);
-
-	if (param) {
-		/* This parameter was successfully decoded,
-			but this callback is only for errors... for now. */
-		return;
-	}
-
-	if (!context->py_err_callback) {
-		return;
-	}
-
-	if (context->threads_suspended) {
-		/* We make an attempt to use the macros here,
-			in case the functions the use change in the future. */
-		PyThreadState * _save = context->threads_suspended;
-		Py_BLOCK_THREADS;
-		context->threads_suspended = NULL;
-	}
-
-	assert(is_valid_err_callback(context->py_err_callback, false));
-
-	assert(!PyErr_Occurred());
-	PyObject *args AUTO_DECREF = Py_BuildValue("ii", node, id);
-    //PyObject * args AUTO_DECREF = PyTuple_Pack(2, python_param, pyoffset);
-    /* Call the user Python callback */
-    PyObject *value AUTO_DECREF = PyObject_CallObject(context->py_err_callback, args);
-
-	/* TODO Kevin: Does it make sense to leave the exception for later?
-		We will continue to call the callback for other parameters anyway,
-		so we could end up stacking many exceptions. */
-	PyErr_Print();
-}
-
 
 int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask, uint32_t exclude_mask, int timeout, int version, PyObject * py_err_callback) {
 
@@ -821,11 +806,7 @@ int pycsh_param_pull_all(int prio, int verbose, int host, uint32_t include_mask,
 	PyThreadState * Py_UNBLOCK_THREADS;
 	
 	pycsh_queue_apply_context_t context = {
-		.vanilla_context = {
-			.verbose = verbose,
-			.debug_print_level = param_queue_dbg_level,
-		},
-		.err_callback = (param_decode_callback_f)pycsh_decode_err_callback,
+		
 		.py_err_callback = py_err_callback,
 
 		.threads_suspended = _save,  /* Created when expanding `Py_BEGIN_ALLOW_THREADS` or `Py_UNBLOCK_THREADS` */

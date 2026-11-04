@@ -135,17 +135,17 @@ static PyObject * Parameter_find(PyTypeObject *type, PyObject *args, PyObject *k
 	static char *kwlist[] = {"param_identifier", "node", "host", "paramver", "timeout", "retries", NULL};
 
 	PyObject * param_identifier;  // Raw argument object/type passed. Identify its type when needed.
-	int node = pycsh_dfl_node;
+	PyObject * node = NULL;
 	int host = INT_MIN;
 	int paramver = 2;
 	int timeout = pycsh_dfl_timeout;
 	int retries = 1;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|iiiii", kwlist, &param_identifier, &node, &host, &paramver, &timeout, &retries)) {
+	if (!PyArg_ParseTupleAndKeywords(args, kwds, "O|Oiiii", kwlist, &param_identifier, &node, &host, &paramver, &timeout, &retries)) {
 		return NULL;  // TypeError is thrown
 	}
 
-	param_t * param = _pycsh_util_find_param_t(param_identifier, node);
+	param_t * param = _pycsh_util_find_param_t_hostname(param_identifier, node);
 
 	if (param == NULL)  // Did not find a match.
 		return NULL;  // Raises TypeError or ValueError.
@@ -699,7 +699,12 @@ static void Parameter_dealloc(ParameterObject *self) {
 void Parameter_callback(param_t * param, int offset) {
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
     assert(Parameter_wraps_param(param));
-    assert(!PyErr_Occurred());  // Callback may raise an exception. But we don't want to override an existing one.
+    
+    /* `Parameter_callback` may be called many times before we call the `on_python_slash_execute_post_hook()`.
+        Imagine that we're throwing up a ball, and blindly waiting for it to possibly come back down. */
+    if (PyErr_Occurred()) {
+        PyErr_Print();
+    }
 
     PyObject *key AUTO_DECREF = PyLong_FromVoidPtr(param);
     ParameterObject *python_param = (ParameterObject*)PyDict_GetItem((PyObject*)param_callback_dict, key);
