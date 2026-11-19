@@ -172,7 +172,7 @@ int pycsh_param_pyval_to_cval(param_type_e type, PyObject * value_in, void * dat
 /**
  * @brief Shared getter for all param_t's wrapped by a Parameter instance.
  */
-void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len) {
+int Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len) {
 
 
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
@@ -195,7 +195,7 @@ void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len
     /* This Parameter has no callback */
     /* Python_callback should not be NULL here when Parameter_wraps_param(), but we will allow it for now... */
     if (python_getter == NULL || python_getter == Py_None) {
-        return;
+        return 0;
     }
 
     // Undo VMEM addr conversion to find parameter index.
@@ -224,12 +224,14 @@ void Parameter_getter(vmem_t * vmem, uint64_t addr, void * dataout, uint32_t len
         PyErr_Print();
     }
 #endif
+
+    return 0;
 }
 
 /**
  * @brief Shared setter for all param_t's wrapped by a Parameter instance.
  */
-void Parameter_setter(vmem_t * vmem, uint64_t addr, const void * datain, uint32_t len) {
+int Parameter_setter(vmem_t * vmem, uint64_t addr, const void * datain, uint32_t len) {
 
     PyGILState_STATE CLEANUP_GIL gstate = PyGILState_Ensure();
     
@@ -251,7 +253,7 @@ void Parameter_setter(vmem_t * vmem, uint64_t addr, const void * datain, uint32_
     /* This Parameter has no callback */
     /* Python_callback should not be NULL here when Parameter_wraps_param(), but we will allow it for now... */
     if (python_setter == NULL || python_setter == Py_None) {
-        return;
+        return 0;
     }
 
     // Undo VMEM addr conversion to find parameter index.
@@ -263,7 +265,7 @@ void Parameter_setter(vmem_t * vmem, uint64_t addr, const void * datain, uint32_
     PyObject *pyoffset AUTO_DECREF = Py_BuildValue("i", offset);
     PyObject *pyval AUTO_DECREF = _pycsh_val_to_pyobject(python_param->parameter_object.param->type, datain);
     if (pyval == NULL) {
-        return;
+        return 0;
     }
     PyObject * args AUTO_DECREF = PyTuple_Pack(3, python_param, pyoffset, pyval);
     /* Call the user Python callback */
@@ -278,6 +280,8 @@ void Parameter_setter(vmem_t * vmem, uint64_t addr, const void * datain, uint32_
         _PyErr_FormatFromCause(PyExc_ParamCallbackError, "Error calling Python callback");
     }
 #endif
+
+    return 0;
 }
 
 /**
